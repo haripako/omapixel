@@ -99,7 +99,11 @@ function phoneSummary(capability) {
   var st = (capability && capability.state) || {};
   var paired = Array.isArray(st.devices) ? st.devices.length : 0;
   if (paired > 0 && st.reachable === false) {
-    return { summary: "out of range", action: "wake", paired: paired };
+    // Its own tone. Found by rendering it: with status ready and a fresh
+    // stamp, an out-of-range phone was being drawn as "normal" because only
+    // the summary and the action were overridden. A degraded state that looks
+    // healthy is the exact failure this widget exists to avoid.
+    return { summary: "out of range", action: "wake", tone: "empty", paired: paired };
   }
   return null;
 }
@@ -139,6 +143,7 @@ function slot(name, capability, nowMs, staleAfterSeconds) {
   if (reach) {
     summary = reach.summary;
     action = reach.action;
+    look = { tone: reach.tone, glyph: "○", action: reach.action };
   }
 
   var fresh = freshness(capability.as_of, nowMs, staleAfterSeconds);
