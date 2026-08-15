@@ -52,10 +52,42 @@ STATUS_ORDER = ("broken", "partial", "works", "blocked")
 # version of this check let exactly that through.
 # "](" is the two-character sequence that turns text into a link; the brackets
 # and parentheses are fine on their own, since model names use them.
-FORBIDDEN = re.compile(r"[|`<>\x00-\x1f\x7f]|\]\(")
+# "://" is here because a bare URL needs no markdown at all: GitHub autolinks
+# it. Blocking the link syntax and leaving the plain URL closes the front door
+# and leaves the window open — worst in [reporter].handle, which renders into
+# the very sentence that promises who measured this. A contributor with a link
+# to share puts it in the issue, not in a generated document.
+# The message below promises "a control character", so the check has to mean
+# every character a reader cannot see, not just the ASCII ones. U+2028 and
+# U+2029 are line and paragraph separators, U+200B-U+200F and U+FEFF are
+# zero-width, and U+202A-U+202E and U+2066-U+2069 reorder text without changing
+# it — the Trojan Source trick, where the rendered line and the stored line say
+# different things. None of them belong in a device model or a note, and a
+# guarantee with silent exceptions is worse than no guarantee.
+FORBIDDEN = re.compile(
+    "["
+    r"|`<>"
+    r"\x00-\x1f\x7f"          # ASCII control, newline and tab included
+    r"\u200b-\u200f"           # zero-width, and the direction marks
+    r"\u2028\u2029"            # line separator, paragraph separator
+    r"\u202a-\u202e"           # bidirectional overrides — Trojan Source
+    r"\u2066-\u2069"           # bidirectional isolates, same trick
+    r"\ufeff"                  # zero-width no-break space, the BOM
+    "]"
+    r"|\]\("
+    # GitHub turns three shapes into links with no markdown syntax at all, and
+    # its autolink extension defines exactly those three: a scheme, a bare
+    # "www.", and an email address. Blocking markdown's link syntax and leaving
+    # these open closes the door and leaves the window. Enumerating them is
+    # sound here in a way that enumerating markdown in general is not — the set
+    # is closed by specification, not by guesswork.
+    r"|://"
+    r"|\bwww\."
+    r"|[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+\.[A-Za-z]{2,}"
+)
 FORBIDDEN_DESCRIPTION = (
-    "a pipe, a backtick, an angle bracket, a markdown link, a newline "
-    "or a control character"
+    "a pipe, a backtick, an angle bracket, a markdown link, a URL, a newline, "
+    "or a control or invisible character"
 )
 
 # [host] was previously copied into the document key and value, unvalidated,

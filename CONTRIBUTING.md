@@ -26,8 +26,12 @@ guessed at.
    scripts/hw-report.sh --markdown
    ```
 
-   It redacts MAC addresses and host IPs and prints bare subnets, so the output
-   is safe to paste in public.
+   It redacts MAC addresses written in the usual forms — `aa:bb:cc:dd:ee:ff` and
+   `aa-bb-cc-dd-ee-ff` — along with host IPv4 and IPv6 addresses, and prints
+   bare subnets instead. It does **not** catch a MAC written without separators
+   or in Cisco form (`aabb.ccdd.eeff`): twelve hex digits match too much
+   ordinary text to key on. Read the block before you paste it — that is the
+   check that catches what a filter cannot.
 
 2. Open a **Hardware report** issue and paste the block in.
 

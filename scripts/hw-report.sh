@@ -199,7 +199,8 @@ human)
     echo "Nothing left to install."
   fi
   echo
-  echo "Reporting hardware? Run:  scripts/hw-report.sh --markdown"
+  echo "This output contains your MAC and IP addresses in full. To share it,"
+  echo "use the redacted form:  scripts/hw-report.sh --markdown"
   ;;
 esac
 

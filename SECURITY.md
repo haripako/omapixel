@@ -24,8 +24,12 @@ request that quietly adds a line to it reaches every one of those people. So:
 contributor and rendered into a published document. `hw-report.sh --markdown`
 and `--toml` therefore redact MAC addresses and host IP addresses, and print
 bare subnets instead — the subnet is the fact that matters for Quick Share, and
-the rest identifies you. CI rejects any report under `data/devices/` containing
-a MAC address or a host IP.
+the rest identifies you. CI rejects a report under `data/devices/` containing a
+MAC address in colon or dash form, or a host IPv4 or IPv6 address. It does not
+catch a MAC written without separators or in Cisco form (`aabb.ccdd.eeff`):
+twelve hex digits match too much ordinary text to reject on sight, so that
+limit is deliberate rather than an oversight. The check is a floor, not a
+guarantee — read your own report before you send it.
 
 If you write a report by hand, do the same. If you spot published data that
 identifies somebody, say so and it will be removed.
