@@ -117,7 +117,7 @@ name = "Instant pairing when the case opens"
 apple = "AirPods pairing"
 phase = "F5"
 tool = "—"
-notes = "No known Linux implementation of the Fast Pair provider side."
+notes = "In the Fast Pair spec the buds are the Provider and the phone is the Seeker, so Linux would have to implement the Seeker side. No known implementation, and the account-linked half of that role leans on Play Services."
 
 [[capability]]
 id = "instant-hotspot"

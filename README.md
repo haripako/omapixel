@@ -34,6 +34,7 @@ repeated. See [conventions](docs/conventions.md).
 | [docs/04-reference-setup.md](docs/04-reference-setup.md) | The maintainer's machine, measured. The baseline others get compared against |
 | [docs/05-packaging.md](docs/05-packaging.md) | Development environment vs. the final product, and the bring-up friction that decided the difference |
 | [docs/features.md](docs/features.md) | Every Apple Continuity and AirPods feature, translated into a target here, tiered by what kind of work it is. Entirely derived |
+| [docs/06-design.md](docs/06-design.md) | Design rules: the Omarchy token system measured, the Material pieces worth importing, and who wins where they conflict |
 
 ## Scripts
 

@@ -81,8 +81,17 @@ password) and call casting (moving a call between devices). Announced at I/O
 devices signed into the same Google account**. There is no Linux implementation,
 official or third-party, as of the query date.
 
-**Fast Pair** — the instant pairing when you open the case. No known Linux
-implementation of the provider side.
+**Fast Pair** — the instant pairing when you open the case. Get the roles the
+right way round before looking for something to port: in Google's specification
+the **Provider** is the accessory advertising that it is ready to pair (the buds,
+GAP Peripheral) and the **Seeker** is the phone looking for it (GAP Central). The
+Pixel Buds already are a Provider, and there is nothing to write on that side.
+What is missing is a Linux **Seeker** — and the account-linked half of the Seeker
+role is where Play Services sits, which is the part that makes this F5 rather
+than F3. No known Linux implementation, as of the query date.
+
+*(Corrected on 15 August 2026: an earlier version of this section had the two
+roles the wrong way round and said the provider side was missing.)*
 
 These belong in the research drawer, not the work queue. See F5 in the
 [roadmap](03-roadmap.md).
@@ -98,3 +107,5 @@ These belong in the research drawer, not the work queue. See F5 in the
 - [Alternatives to KDE Connect](https://en.androidsis.com/Alternatives-to-KDE-Connect-for-connecting-Android-and-Linux/)
 - [Cross-device services: call casting and internet sharing — 9to5Google](https://9to5google.com/2024/07/28/android-cross-device-services-rolling-out/)
 - [Instant Hotspot, how to use it — Android Authority](https://www.androidauthority.com/android-cross-device-services-how-to-instant-hotspot-3478597/)
+- [Google Fast Pair Service — specification](https://developers.google.com/nearby/fast-pair/specifications/introduction)
+- [Google Fast Pair integration — Nordic nRF Connect SDK docs](https://docs.nordicsemi.com/bundle/ncs-3.0.1/page/nrf/external_comp/bt_fast_pair.html)

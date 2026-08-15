@@ -41,7 +41,7 @@ Built from 1 device report. Every cell traces back to a named reporter and a dat
 - **Phone screen on the desktop** — Needs USB debugging or ADB over WiFi.
 - **Per-earbud and case battery** — Standard AVRCP gives one combined figure only. Three separate readings require the proprietary protocol. The case has no radio of its own and only reports whether an earbud is inside.
 - **Omarchy bar widget for buds and phone** — Nothing exists for this. It is the original work in this project.
-- **Instant pairing when the case opens** — No known Linux implementation of the Fast Pair provider side.
+- **Instant pairing when the case opens** — In the Fast Pair spec the buds are the Provider and the phone is the Seeker, so Linux would have to implement the Seeker side. No known implementation, and the account-linked half of that role leans on Play Services.
 - **Tethering without entering a password** — Google Cross-device services: same Google account, Android and ChromeOS only.
 - **Move a call between devices** — Google Cross-device services. Same constraint as instant-hotspot.
 - **Continue an app across devices** — No equivalent concept outside Apple-to-Apple or Google-to-Google.
