@@ -40,14 +40,29 @@ SCHEMA = 1
 # has already been silently wrong once on this project because sort -n met a
 # comma-decimal locale, and ping prints "tiempo=" instead of "time=" in Spanish.
 # See docs/05-packaging.md.
-ENV = {**os.environ, "LC_ALL": "C", "LANG": "C"}
+def probe_env() -> dict:
+    """The environment to run a probe in. Built per call, never at import.
+
+    This used to be a module-level ENV captured when the module was imported,
+    while shutil.which() resolved against os.environ. Two sources of truth for
+    "which program is this", and which one won depended on when the module
+    happened to be imported. The emulator's test harness had the same pattern
+    and its PATH substitution failed to contain anything: which() looked at the
+    replaced PATH and Popen ran with the captured one, so a test written to
+    publish nothing published a real mDNS record on the LAN.
+
+    This file is worse than a harness, because it runs on the user's machine.
+    Both now read os.environ at call time, so they cannot disagree.
+    """
+    return {**os.environ, "LC_ALL": "C", "LANG": "C"}
 
 
 def run(cmd: list[str], timeout: int = 5) -> tuple[int, str]:
     """Run a command. Never raises: a failure is data, not an exception."""
     try:
         p = subprocess.run(
-            cmd, capture_output=True, text=True, timeout=timeout, env=ENV, check=False
+            cmd, capture_output=True, text=True, timeout=timeout,
+            env=probe_env(), check=False,
         )
         return p.returncode, p.stdout.strip()
     except (OSError, subprocess.SubprocessError):
@@ -90,7 +105,11 @@ def capability(status: str, reason: str | None, provider, state: dict) -> dict:
         "status": status,
         "reason": reason,
         "provider": provider,
-        "as_of": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        # Milliseconds, not seconds. The whole call takes 84 ms, so two
+        # consecutive probes would otherwise carry an identical stamp and a
+        # consumer comparing them could not tell a fresh answer from one 999 ms
+        # old — the same argument that put the stamp here, one level down.
+        "as_of": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z",
         "state": state,
     }
 
@@ -253,9 +272,24 @@ def kdeconnect_devices(only_reachable: bool) -> tuple[bool, list[str]]:
 
 
 def probe_phone_link() -> dict:
-    if not shutil.which("busctl") or not shutil.which("kdeconnectd"):
+    if not shutil.which("kdeconnectd"):
         return capability(
             NOT_INSTALLED, "kdeconnect is not installed", None,
+            {"devices": [], "reachable": []},
+        )
+
+    # busctl is systemd's, and docs/05-packaging.md says the product cannot
+    # assume systemd. On a machine without it but with KDE Connect running,
+    # what is missing is our way of asking, not their package — and the two
+    # have different fixes. Saying "kdeconnect is not installed" there would be
+    # a plain lie about someone else's machine.
+    if not shutil.which("busctl"):
+        return capability(
+            NOT_PROBED,
+            "kdeconnect is installed, but busctl is not available to query it "
+            "on this machine — this is our missing query path, not a missing "
+            "kdeconnect",
+            pkg_version("kdeconnect") or "kdeconnect",
             {"devices": [], "reachable": []},
         )
 
@@ -273,7 +307,21 @@ def probe_phone_link() -> dict:
             {"devices": [], "reachable": []},
         )
 
-    _, reachable = kdeconnect_devices(only_reachable=True)
+    # The `answered` flag is not discardable here. If the daemon dies between
+    # the two calls, an empty list would otherwise be reported as "paired but
+    # out of range — the phone is off", which is a specific invented cause for
+    # a reading that was never taken. Same defect QA found in probe_buds with
+    # bluetoothd down. Nobody answered means no_answer, whatever the shape of
+    # the empty value that came back.
+    answered, reachable = kdeconnect_devices(only_reachable=True)
+    if not answered:
+        return capability(
+            NO_ANSWER,
+            "kdeconnect answered which devices are paired, then stopped "
+            "answering — whether any is reachable is unknown, not negative",
+            provider, {"devices": paired, "reachable": []},
+        )
+
     if not reachable:
         return capability(
             NOTHING_PRESENT,

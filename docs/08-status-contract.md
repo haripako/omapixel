@@ -66,7 +66,11 @@ These are promises to consumers, and the reason they can be written simply.
    It is the moment that capability was probed, never the moment the JSON was
    rendered. Implemented 2026-08-16; the third primitive below is now real
    rather than agreed.
-8. **The whole call answers fast enough to poll.** A bar widget refreshing once
+8. **The whole call answers fast enough to poll — measured, not enforced.**
+   Stated as a measurement with a date, because that is what it is: nothing in
+   the code fails if a future probe reintroduces a fixed wait. Tests owns the
+   ceiling that would make it enforceable, and until that exists this is a fact
+   about 2026-08-16 rather than a promise about tomorrow. A bar widget refreshing once
    a second cannot hold a process open for two of them, so latency is part of
    the contract and not an implementation detail. Measured on the reference
    machine on 2026-08-16: **84 ms**, down from 2090 ms. The 2008 ms were one
