@@ -32,6 +32,8 @@ repeated. See [conventions](docs/conventions.md).
 | [docs/02-capability-matrix.md](docs/02-capability-matrix.md) | Generated. Function by function, per device, with a name and a date on every cell |
 | [docs/03-roadmap.md](docs/03-roadmap.md) | Phases F0 to F5, from what works this afternoon to pure research |
 | [docs/04-reference-setup.md](docs/04-reference-setup.md) | The maintainer's machine, measured. The baseline others get compared against |
+| [docs/05-packaging.md](docs/05-packaging.md) | Development environment vs. the final product, and the bring-up friction that decided the difference |
+| [docs/features.md](docs/features.md) | Every Apple Continuity and AirPods feature, translated into a target here, tiered by what kind of work it is. Entirely derived |
 
 ## Scripts
 
