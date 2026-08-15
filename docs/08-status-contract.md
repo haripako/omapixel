@@ -62,6 +62,58 @@ These are promises to consumers, and the reason they can be written simply.
    addresses. Same rule as device reports, for the same reason: this output ends
    up pasted into issues.
 
+## Three primitives, not a pile of fields
+
+Arrived at independently by research, QA and the desktop layer within the same
+evening, which is the sign it is real. Every field this contract will ever grow
+is one of three shapes. Decide it now, while it is cheap: retrofitting
+provenance onto six consumers later is not.
+
+**1. Ausente-con-motivo — absent with a reason.** Never `[]`, never `null`,
+never a bare `false`. `{"kind": "unavailable", "reason": "..."}`. Unreachable is
+not 0 %, "no peer" is not "failed", "not connected" is not "connected but the
+phone has them", and a low-confidence guess must produce nothing rather than a
+guess. Already used by `peers` and by battery; it is a type, not a habit.
+
+**2. Value with provenance.** `source` on the battery figure was the first
+instance and it was reasoned, not lucky. The simulated-peer mark and the *side*
+a transfer failed on are **the same requirement seen again**, not three separate
+cases. Each time, two situations look identical from outside and only the data
+can separate them:
+
+| Looks the same | Actually is |
+|---|---|
+| One battery figure | AVRCP giving its complete answer, or two of three readings failing |
+| A peer in the list | A real Pixel, or our emulator |
+| A failed transfer | Our end gave up, or theirs refused |
+
+**A value without provenance is not drawn as fact.** A missing provenance field
+means unknown, and unknown never renders as real — that direction matters,
+because an old emulator build or a truncated payload must degrade into "unsure",
+not into "a measured Pixel". That is the screenshot that ends up in an issue.
+
+**3. Value with an expiry.** `as_of` on the reading itself. A figure with no
+timestamp is indistinguishable from the same figure an hour later, and a bar
+will draw them identically. Phone battery needs the age of the reading, focus
+sync needs to know which side changed last, and who owns the earbuds stops
+being true the moment the phone takes them.
+
+Get these three right and every future "this must look unknown" is satisfied by
+construction, rather than by seven people remembering.
+
+### Rejected is not failed
+
+A related distinction the failure states have to carry, and the reason it is
+here rather than in the design rules: **rejected is a decision, not a fault.**
+The other end said no. It must not be painted as an error. `failed` must name
+the side it failed on, `timeout` must say how long was waited — that is what
+replaces an indefinite spinner — and "no peer" means discovery found nothing,
+not that nothing exists.
+
+Failure states are **states of `file-send` and `file-receive`**, not
+capabilities. They never become rows in `data/capabilities.toml`; doing so would
+invent ids that no hardware report can ever join against.
+
 ## Shape
 
 ```json

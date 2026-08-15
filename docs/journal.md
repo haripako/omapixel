@@ -334,7 +334,8 @@ right by accident**, which is the same family as the four cases above.
 
 **measured, against stubs** — Suite now at **147 tests**, including 24 covering
 `scripts/omapixel-status`. Supersedes the 126 recorded earlier the same day;
-both figures are true of their moment.
+both figures are true of their moment. Later the same evening, **150 green**,
+with 18 adversarial entries against the privacy detector.
 
 **decision** — Two `omapixel-status` defects found by review — the Pixel phone
 counted as earbuds, and a dead `bluetoothd` reported as "nothing is paired" —
@@ -406,9 +407,19 @@ errors, successes and state explicitly rather than failing in silence.
 It takes priority because F1 is blocked twice over — by hardware that has not
 arrived, and by a measured risk, since launching `rquickshare` crashes
 `bluetoothd` three times out of three and leaves the machine without a pointer.
-A virtual peer unblocks both, and can run in CI and in a clean VM. The status
-contract already has the hole it fits: `peers` is never `[]` but `unavailable`
-with a reason, *until discovery exists*. This is what makes it exist.
+The status contract already has the hole it fits: `peers` is never `[]` but
+`unavailable` with a reason, *until discovery exists*. This is what makes it
+exist.
+
+**correction, same day, and it refutes a premise this very entry carried** — It
+was written here, and repeated elsewhere, that a virtual peer unblocks *both*
+those things. It does not. **The emulator does not remove the segfault**,
+because `bluetoothd` dies during `rquickshare`'s own startup, before any peer
+exists to be discovered. Whether the peer on the other end is real, virtual or
+absent changes nothing about it. The emulator removes the *hardware* blocker
+and leaves the crash exactly where it was — which means the isolation test is
+still the thing that matters most, and no amount of emulator work substitutes
+for it.
 
 Three rules come with it, and they are not negotiable per session:
 

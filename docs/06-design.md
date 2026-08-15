@@ -117,10 +117,18 @@ accent)`, `controlBorder(...)`, `controlBorderWidth(...)`.
 
 ### Motion
 
-Measured by inventorying every animation in the shell source:
+Measured by inventorying every animation in the shell source. Re-run it after
+any Omarchy update — the numbers below are a build, not a law:
+
+```bash
+cd /usr/share/omarchy/shell
+grep -rhoE '\b(NumberAnimation|ColorAnimation|SpringAnimation|PropertyAnimation)' . | sort | uniq -c | sort -rn
+grep -rhoE 'easing\.type: Easing\.[A-Za-z]+' . | sort | uniq -c | sort -rn
+grep -rhoE 'duration: [0-9]+' . | sort | uniq -c | sort -rn
+```
 
 - 38 `NumberAnimation`, 14 `ColorAnimation`, 0 `SpringAnimation`. **There is not
-  one spring in the Omarchy shell.**
+  one spring in the shell source of `4.0.0-1`.**
 - Easing is overwhelmingly `Easing.OutCubic` (26 uses), then `OutQuad` (7),
   `InOutCubic` (5).
 - Durations cluster at 140 ms (10 uses), 160, 120, 180 and 260 for interaction
@@ -381,6 +389,17 @@ fail. The vocabulary lives here instead:
 | Timed out | That nothing answered, and for how long we waited | An indefinite spinner. That is the state this replaces |
 | No peer | That discovery found nothing, not that nothing exists | An empty list. Empty reads as "none available", which is a claim |
 
+**Only the last row has data behind it today.** `docs/08-status-contract.md`
+already guarantees that `peers` is never `[]` — it is `unavailable` with a
+reason — so that row is not a design preference, it is something the contract
+enforces; design and contract arrived there independently, which is a good sign
+for both. The other four states have **no field behind them at all**: there is
+no transfer progress and no transfer result in the contract yet. Designing them
+now is legitimate, but they are assumptions in exactly the sense the table above
+means, and they need a contract extension that has not been agreed. Saying so is
+the point: a widget that invents a state is the same failure as a widget that
+invents a number.
+
 Each of these has to be producible on demand before it can be designed, which is
 what the emulator's deliberate failure modes are for. And the corollary to the
 provenance rule holds in both directions: **a failure produced by the emulator
@@ -431,6 +450,15 @@ Bluetooth work the same night.
 Four in a day is not anecdote. **What a tool reports is not evidence of what it
 did.** Every one of these would have produced a confident, wrong widget if a
 surface had rendered the status string it was handed.
+
+The same requirement has now been argued into the status contract three separate
+times in one day, from three directions: `source` on the battery figure, the
+provenance flag on a simulated peer, and which end a transfer failed at. They
+are one requirement. **Every value in the contract arrives with where it came
+from, and a value without provenance is not trusted enough to draw as fact.**
+Design cannot mark a distinction the data does not carry, so this is the one
+thing the interface layer must insist on before anything else in the contract
+gets settled.
 
 ## The design has to survive leaving Omarchy
 
