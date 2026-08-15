@@ -35,6 +35,7 @@ repeated. See [conventions](docs/conventions.md).
 | [docs/05-packaging.md](docs/05-packaging.md) | Development environment vs. the final product, and the bring-up friction that decided the difference |
 | [docs/features.md](docs/features.md) | Every Apple Continuity and AirPods feature, translated into a target here, tiered by what kind of work it is. Entirely derived |
 | [docs/06-design.md](docs/06-design.md) | Design rules: the Omarchy token system measured, the Material pieces worth importing, and who wins where they conflict |
+| [docs/07-plan.md](docs/07-plan.md) | The plan of record: what gets built, in which blocks, in what order, and the six things a user should end up able to say |
 
 ## Scripts
 
