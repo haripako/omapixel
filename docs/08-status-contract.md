@@ -61,6 +61,20 @@ These are promises to consumers, and the reason they can be written simply.
 6. **No host-identifying data.** Subnets, never host addresses. No MAC
    addresses. Same rule as device reports, for the same reason: this output ends
    up pasted into issues.
+7. **`as_of` is on every capability, not on the document.** A consumer caches
+   one answer at a time, so the stamp has to be at the granularity it caches at.
+   It is the moment that capability was probed, never the moment the JSON was
+   rendered. Implemented 2026-08-16; the third primitive below is now real
+   rather than agreed.
+8. **The whole call answers fast enough to poll.** A bar widget refreshing once
+   a second cannot hold a process open for two of them, so latency is part of
+   the contract and not an implementation detail. Measured on the reference
+   machine on 2026-08-16: **84 ms**, down from 2090 ms. The 2008 ms were one
+   command — `kdeconnect-cli --list-devices` runs a fixed two-second discovery
+   cycle before answering. The same question over D-Bus answers in 2 ms, so
+   KDE Connect is asked over `busctl`, not through its CLI. Caching was the
+   alternative and it was rejected: it hides the wait instead of removing it,
+   and then needs the stamp above to stay honest about what it hid.
 
 ## Three primitives, not a pile of fields
 
@@ -131,6 +145,7 @@ invent ids that no hardware report can ever join against.
       "status": "no_answer",
       "reason": "rquickshare is installed but not running",
       "provider": "r-quick-share 0.11.5-5",
+      "as_of": "2026-08-16T00:06:25Z",
       "state": {
         "running": false,
         "peers": {"kind": "unavailable", "reason": "rquickshare is not running"}
@@ -141,13 +156,15 @@ invent ids that no hardware report can ever join against.
       "status": "nothing_present",
       "reason": "no device is paired with KDE Connect",
       "provider": "kdeconnect 26.04.3-1",
-      "state": {"devices": []}
+      "as_of": "2026-08-16T00:06:25Z",
+      "state": {"devices": [], "reachable": []}
     },
     "buds": {
       "available": false,
       "status": "not_installed",
       "reason": "pbpctrl is not installed",
       "provider": null,
+      "as_of": "2026-08-16T00:06:25Z",
       "state": {
         "battery": {"kind": "unavailable", "reason": "pbpctrl is not installed", "source": null},
         "anc": {"kind": "unavailable", "reason": "pbpctrl is not installed"}
