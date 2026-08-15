@@ -143,20 +143,19 @@ class FeaturesFormat(unittest.TestCase):
                     f"Bold means the id is in data/capabilities.toml, ticks mean "
                     f"it is not, and an em dash means the row proposes none",
                 )
-                if bold:
-                    cap_id = bold.group(1)
-                    self.assertIn(
-                        cap_id, self.promoted,
-                        f"features.md:{line}: `{cap_id}` is not in "
-                        f"data/capabilities.toml — put it in backticks",
-                    )
-                else:
-                    cap_id = ticked.group(1)
-                    self.assertNotIn(
-                        cap_id, self.promoted,
-                        f"features.md:{line}: `{cap_id}` is already in "
-                        f"capabilities.toml — put it in bold in docs/features.md",
-                    )
+            # fail() rather than assertIn/assertNotIn: those print the whole
+            # set of promoted ids before the message, and the reader needs the
+            # one-character fix, not an inventory.
+            if bold and bold.group(1) not in self.promoted:
+                self.fail(
+                    f"features.md:{line}: `{bold.group(1)}` is not in "
+                    f"data/capabilities.toml — put it in backticks"
+                )
+            if ticked and ticked.group(1) in self.promoted:
+                self.fail(
+                    f"features.md:{line}: `{ticked.group(1)}` is already in "
+                    f"capabilities.toml — put it in bold in docs/features.md"
+                )
 
     # Deliberately not tested: "every promoted id appears in features.md".
     # The mapping is injective, not onto. `hotkeys` and `menu-entry` are

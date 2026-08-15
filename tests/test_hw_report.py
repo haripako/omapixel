@@ -288,6 +288,26 @@ class ScriptsNeverActOnTheSystem(unittest.TestCase):
                     f"{path.name}:{number} changes Bluetooth state:\n  {line.strip()}",
                 )
 
+    def test_no_script_calls_a_hardware_tool_by_absolute_path(self):
+        """The lock that keeps the sandbox argument true.
+
+        Replacing PATH protects against PATH lookups and nothing else. A script
+        that called /usr/bin/bluetoothctl directly would walk straight through
+        every stub in this suite. No script does today; this is what makes that
+        still true in six months.
+        """
+        pattern = re.compile(
+            r"(/usr)?/s?bin/(bluetoothctl|rquickshare|pbpctrl|kdeconnect-cli"
+            r"|scrcpy|rfkill|btmgmt|hcitool)\b"
+        )
+        for path in self.scripts():
+            for number, line in self.code_lines(path):
+                self.assertIsNone(
+                    pattern.search(line),
+                    f"{path.name}:{number} calls a hardware tool by absolute path, "
+                    f"which no test sandbox can intercept:\n  {line.strip()}",
+                )
+
     def test_no_script_launches_the_integration_tools(self):
         """`command -v rquickshare` is a check. `rquickshare` is an incident.
 

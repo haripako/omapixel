@@ -365,6 +365,24 @@ Surfaces for `clipboard`, `sms`, `screen-mirror`, `remote-input` and everything
 in F5 are deliberately absent: no design has been proposed for them, and absent
 means untested here too.
 
+### Simulated data must look simulated
+
+A virtual Quick Share peer is planned so the transfer path can be exercised
+without the phone. The design constraint that comes with it is not optional:
+**a simulated peer must be visibly simulated on every surface that draws it**,
+and the marking must survive a screenshot.
+
+The reason is not purity. Someone will paste a screenshot of a working transfer
+into an issue, a README or a hardware report, and if the virtual peer renders
+identically to a real Pixel, that image becomes evidence for something nobody
+measured. This project's one rule dies at exactly that moment, in the one
+artefact that travels furthest.
+
+So: a distinct label in the peer's name, not a subtle tint. Never the device
+glyph a real Pixel gets. And any status line derived from the emulator says so
+in words. The same applies to fixtures and mock data used while iterating on a
+widget: if it can be screenshotted, it can be mistaken for a measurement.
+
 ### Why that rule is not paranoia
 
 Four instances turned up on this machine in a single day, 15 August 2026. Two

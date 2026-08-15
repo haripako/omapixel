@@ -168,6 +168,34 @@ Per [packaging](05-packaging.md). The product half.
   failure found so far was silent. It turns `hw-report.sh` from a reporter into
   a diagnostician: subnet, reachability, firewall ports, daemon alive, autostart
   wired, USB mode, adb authorisation, adapter present. Each check names its fix.
+
+### The doctor rule: verify the effect, never the reported state
+
+Proposed by the desktop-layer agent, adopted 2026-08-15. **A check that asks a
+subsystem how it is feeling is not a check, it is a survey.**
+
+Four cases measured on this machine in one evening, every one of them a
+subsystem reporting confidently and wrongly about itself:
+
+| It said | It was |
+|---|---|
+| `Local plugin changed, reloading` | Nothing reloaded |
+| `coredumpctl`: `inaccessible` | Three core files sitting on disk, just root-owned |
+| `bluetoothctl`: `le-connection-abort-by-local` | The HID attached anyway |
+| BlueZ: `Connected: yes` | No input node, no pointer |
+
+So: not "is the daemon alive" but "does the input node exist". Not "is the
+adapter present" but "does it answer". Not "did the command say it worked" but
+"is the thing it claims to have done observably true".
+
+**This is not one more check, it changes the acceptance criterion for all of
+them**, and the bill lands on `hw-report.sh`, which today reports state without
+judging it. Better to know that now than halfway through B4.
+
+Already applied once: `omapixel-status` no longer concludes that file transfer
+works because the process exists. A live process is not a serving one, so it
+verifies the listening socket and reports "running but not listening" as its own
+distinct state.
 - **Dependencies as data** — a per-distro table, so adding Fedora is a data
   change. The install path is currently Arch-only and that is the single biggest
   portability problem.

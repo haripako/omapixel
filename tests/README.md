@@ -57,15 +57,24 @@ in code rather than in a comment nobody reads.
 fails.** That is the point: the failure says "this works now, delete the
 decorator". Do not silence it by deleting the test.
 
-Currently marked:
+Currently marked, all eight in `test_network_schema.py`: the whole `[network]`
+schema. Agreed with backend on 2026-08-15 — the negative cases are written here
+first, the validation lands in `build-matrix.py` against them. The first of the
+eight is not schema hygiene but a privacy leak, and its docstring says so.
 
-- `test_network_schema.py` — the whole `[network]` schema. Agreed with
-  development on 2026-08-15: the negative cases are written here first, the
-  validation lands in `build-matrix.py` against them.
-- `test_docs_features.py::test_every_promoted_id_is_reachable_from_the_catalogue`
-  — `hotkeys` and `menu-entry` are promoted capabilities with no row in
-  `docs/features.md`. Reported; whether the rule holds at all is research's
-  call, since it is their document.
+## What is deliberately not tested
+
+- **That external URLs respond.** The network is never touched. A dead link is
+  not a broken build, and a suite that needs the network cannot tell the two
+  apart.
+- **Measured against derived.** That is human judgement. A test pretending to
+  check it would manufacture exactly the false confidence `conventions.md`
+  warns about.
+- **That every promoted capability appears in `docs/features.md`.** The mapping
+  is injective, not onto: `hotkeys` and `menu-entry` are Omarchy-layer
+  capabilities with no Apple analogue, and the catalogue is organised by what
+  Apple does.
+- **Prose.** No line length, no section order, no wording.
 
 ## Ownership
 

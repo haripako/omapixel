@@ -225,6 +225,37 @@ class StatusContract(unittest.TestCase):
                 self.assertEqual(buds["state"][field]["kind"], "unavailable")
                 self.assertTrue(buds["state"][field]["reason"])
 
+    def test_a_paired_phone_is_not_counted_as_earbuds(self):
+        """Found by code review on 2026-08-15, fixed by backend the same day.
+
+        `probe_buds` used to match paired devices on "buds" **or** "pixel", so
+        a Pixel phone — the one device every user of this project will have
+        paired once F2 lands — was read as a set of earbuds. Kept as a
+        regression test, since the obvious "improvement" is to widen that match
+        again.
+        """
+        stubs = {
+            "pbpctrl": "#!/bin/sh\n",
+            "bluetoothctl": "#!/bin/sh\necho 'Device 11:22:33:44:55:66 Pixel 7 Pro'\n",
+        }
+        data, _ = self.json_status(stubs=stubs)
+        self.assertEqual(data["capabilities"]["buds"]["status"], "nothing_present")
+
+    def test_a_dead_bluetooth_daemon_is_not_reported_as_nothing_paired(self):
+        """The distinction the whole `status` field exists for.
+
+        When bluetoothd is down — which on this machine happens by segfault,
+        not by choice — bluetoothctl exits non-zero with an empty list.
+        Reporting that as "no earbuds paired" tells the user to go pairing when
+        what they need is to start a daemon. Also found on 2026-08-15 and fixed
+        the same day.
+        """
+        stubs = {"pbpctrl": "#!/bin/sh\n", "bluetoothctl": "#!/bin/sh\nexit 1\n"}
+        data, _ = self.json_status(stubs=stubs)
+        buds = data["capabilities"]["buds"]
+        self.assertEqual(buds["status"], "no_answer")
+        self.assertIn("daemon", buds["reason"])
+
     def test_unpaired_buds_are_nothing_present_not_not_installed(self):
         """Three fixes, three statuses. This is the distinction the field exists for."""
         stubs = {
@@ -238,8 +269,7 @@ class StatusContract(unittest.TestCase):
 
     def everything_working(self) -> dict[str, str]:
         return {
-            "rquickshare": "#!/bin/sh\n",
-            "pgrep": "#!/bin/sh\nexit 0\n",
+            **self.LISTENING,
             "kdeconnect-cli": "#!/bin/sh\necho abcd1234\n",
             "pbpctrl": "#!/bin/sh\n",
         }
@@ -251,19 +281,64 @@ class StatusContract(unittest.TestCase):
         self.assertIn("not running", transfer["reason"])
         self.assertEqual(transfer["provider"], "r-quick-share 0.11.5-5")
 
+    # A running process is not a working one: the script checks for a listening
+    # socket, so "installed + alive + listening" needs all three stubs.
+    LISTENING = {
+        "rquickshare": "#!/bin/sh\n",
+        "pgrep": "#!/bin/sh\nexit 0\n",
+        "ss": '#!/bin/sh\necho \'LISTEN 0 128 *:35475 *:* users:(("rquickshare",pid=1,fd=9))\'\n',
+    }
+
     def test_running_transfer_is_ready(self):
-        stubs = {"rquickshare": "#!/bin/sh\n", "pgrep": "#!/bin/sh\nexit 0\n"}
-        data, _ = self.json_status(stubs=stubs)
+        data, _ = self.json_status(stubs=self.LISTENING)
         transfer = data["capabilities"]["file-transfer"]
         self.assertEqual(transfer["status"], "ready")
         self.assertTrue(transfer["available"])
         self.assertIsNone(transfer["reason"])
 
     def test_no_port_is_published(self):
-        """Measured: the port changes on every launch. A consumer must not cache it."""
-        stubs = {"rquickshare": "#!/bin/sh\n", "pgrep": "#!/bin/sh\nexit 0\n"}
+        """Measured: the port changes on every launch. A consumer must not cache it.
+
+        The stub hands the script a port (35475, the one measured here). None of
+        it may reach the output.
+        """
+        data, _ = self.json_status(stubs=self.LISTENING)
+        rendered = json.dumps(data["capabilities"]["file-transfer"])
+        self.assertNotIn("port", rendered)
+        self.assertNotIn("35475", rendered)
+
+    def test_peers_is_never_an_empty_list(self):
+        """An empty list reads as "we looked and nobody is there".
+
+        Next to status: ready that is a lie, because discovery does not exist
+        yet. The contract says unavailable with a reason instead.
+        """
+        data, _ = self.json_status(stubs=self.LISTENING)
+        peers = data["capabilities"]["file-transfer"]["state"]["peers"]
+        self.assertIsInstance(peers, dict)
+        self.assertEqual(peers["kind"], "unavailable")
+        self.assertTrue(peers["reason"])
+
+    def test_alive_but_not_listening_is_not_ready(self):
+        """The tool reporting on itself is not evidence; the effect is.
+
+        Same rule the doctor is being built on: four subsystems on this machine
+        have now said one thing and done another.
+        """
+        stubs = {"rquickshare": "#!/bin/sh\n", "pgrep": "#!/bin/sh\nexit 0\n",
+                 "ss": "#!/bin/sh\necho 'LISTEN 0 128 *:22 *:* users:((\"sshd\",pid=1,fd=3))'\n"}
         data, _ = self.json_status(stubs=stubs)
-        self.assertNotIn("port", json.dumps(data["capabilities"]["file-transfer"]))
+        transfer = data["capabilities"]["file-transfer"]
+        self.assertEqual(transfer["status"], "no_answer")
+        self.assertIn("not listening", transfer["reason"])
+
+    def test_socket_check_failing_is_distinguished_from_not_listening(self):
+        stubs = {"rquickshare": "#!/bin/sh\n", "pgrep": "#!/bin/sh\nexit 0\n",
+                 "ss": "#!/bin/sh\nexit 1\n"}
+        data, _ = self.json_status(stubs=stubs)
+        transfer = data["capabilities"]["file-transfer"]
+        self.assertEqual(transfer["status"], "no_answer")
+        self.assertIn("could not be checked", transfer["reason"])
 
     def test_daemon_that_does_not_answer_is_distinguished_from_absent(self):
         stubs = {"kdeconnect-cli": "#!/bin/sh\nexit 1\n"}

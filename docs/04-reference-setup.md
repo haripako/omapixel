@@ -179,7 +179,16 @@ are not merely supported, they are active.
 `btmgmt` also prints `version 12`. **Deliberately not translated into a
 Bluetooth Core Specification number**: that mapping needs the SIG's Assigned
 Numbers table and has not been checked. The evidence here is the flags, not the
-version integer.
+version integer. It is also not the BlueZ userspace version, which is 5.87 and
+unrelated.
+
+**There is an open contradiction here, and it is left open on purpose.** A
+derived claim in circulation says this adapter is Bluetooth 5.2, from a
+manufacturer specification sheet. The controller reports `version 12`. Those two
+cannot both be reconciled without the SIG table, and nobody has checked it.
+Recording the tension is more useful than resolving it by assumption in either
+direction — a measured integer does not automatically beat a spec sheet when
+the mapping between them is the unverified part.
 
 **What this does not say, and the distance is large.** It says the controller
 exposes the capability. It says nothing about whether BlueZ and PipeWire can

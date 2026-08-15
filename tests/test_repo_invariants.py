@@ -131,11 +131,15 @@ class PrivacyOfPublishedReports(unittest.TestCase):
         for path in sorted(DEVICES.glob("*.toml")):
             with self.subTest(file=path.name):
                 found = privacy_violations(path.read_text())
-                self.assertEqual(
-                    found, [],
-                    f"{path.name} leaks {', '.join(found)}. Use the adapter model "
-                    f"and the bare subnet instead; see docs/conventions.md",
-                )
+                if found:
+                    self.fail(
+                        f"{path.name} leaks {', '.join(found)}.\n"
+                        f"Use the adapter model and the bare subnet instead; see "
+                        f"docs/conventions.md, 'Privacy in public reports'.\n"
+                        f"Do NOT normalise the address away — it already travelled "
+                        f"in the contributor's pull request. Reject the report and "
+                        f"ask them to edit it at the source."
+                    )
 
     def test_the_generated_matrix_contains_no_mac_or_host_ip(self):
         """Reports are clean and the renderer must not reassemble anything."""
@@ -166,6 +170,63 @@ class PrivacyOfPublishedReports(unittest.TestCase):
         text = 'bluez = "5.87"\ntool = "r-quick-share 0.11.5-5"\nkernel = "7.1.8-arch1-3"'
         self.assertEqual(privacy_violations(text), [])
 
+    # --- the seven that used to get through ---------------------------------
+    #
+    # Found by code review on 2026-08-15 by attacking the detector rather than
+    # trusting it. Each of these walked straight past the first version.
+
+    def test_detector_catches_a_hyphenated_mac(self):
+        """The IEEE's canonical form, and what Windows shows in its BT panel.
+
+        This is the leak that will actually happen: a contributor copies the
+        address out of Windows and pastes it into a report.
+        """
+        self.assertTrue(privacy_violations('bt = "10-6F-D9-DA-5A-16"'))
+
+    def test_detector_catches_a_global_ipv6_address(self):
+        """A whole address family was missing, not an edge case."""
+        self.assertTrue(
+            privacy_violations('addr = "2a02:9130:88c1:4e00:1a2b:3c4d:5e6f:7a8b"')
+        )
+
+    def test_detector_catches_a_link_local_ipv6_address(self):
+        """fe80:: with EUI-64 carries the MAC inside it."""
+        self.assertTrue(privacy_violations('addr = "fe80::1a2b:3c4d:5e6f:7a8b"'))
+
+    def test_detector_catches_a_single_host_dressed_as_a_network(self):
+        """192.168.10.0/32 is exactly one machine, and /31 is two."""
+        for cidr in ("192.168.10.0/32", "192.168.10.0/31"):
+            with self.subTest(cidr=cidr):
+                self.assertTrue(privacy_violations(f'subnet = "{cidr}"'))
+
+    def test_detector_catches_a_host_ending_in_zero_inside_a_wider_network(self):
+        """10.0.5.0 is a host in 10.0.4.0/23, and it ends in .0."""
+        self.assertTrue(privacy_violations('subnet = "10.0.5.0/23"'))
+
+    def test_detector_allows_a_genuine_wide_network(self):
+        """The other half of the previous case: 10.0.4.0/23 really is a network."""
+        self.assertEqual(privacy_violations('subnet = "10.0.4.0/23"'), [])
+
+    def test_detector_allows_an_ipv6_subnet(self):
+        self.assertEqual(privacy_violations('subnet = "2a02:9130:88c1::/48"'), [])
+
+    def test_detector_does_not_trip_on_timestamps_or_usb_ids(self):
+        """Colons are everywhere. The parser decides, not the shape."""
+        text = 'log = "23:15:49 started"\nusb = "18d1:4ee2"\nadapter = "0e8d:0608"'
+        self.assertEqual(privacy_violations(text), [])
+
+    def test_the_documented_blind_spots_are_still_blind(self):
+        """Pins what the docstring promises, so the promise cannot rot.
+
+        Separator-less and Cisco-style MACs are deliberately not detected: a
+        false positive on twelve hex digits would be a red build a stranger
+        cannot fix. If somebody adds detection, this test fails and the
+        docstring gets corrected in the same commit.
+        """
+        for shape in ("106FD9DA5A16", "106f.d9da.5a16"):
+            with self.subTest(shape=shape):
+                self.assertEqual(privacy_violations(f'bt = "{shape}"'), [])
+
 
 class MarkdownLinks(unittest.TestCase):
     """Relative links resolve, anchors included.
@@ -184,10 +245,8 @@ class MarkdownLinks(unittest.TestCase):
         for path in self.markdown_files():
             findings = broken_links(path.read_text(), path)
             with self.subTest(file=path.name):
-                self.assertEqual(
-                    findings, [],
-                    f"{path.name}: " + "; ".join(findings),
-                )
+                if findings:
+                    self.fail(f"{path.name}: " + "; ".join(findings))
 
     # --- positive controls: the checker has to be able to fail ---------------
     #

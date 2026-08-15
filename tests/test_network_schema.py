@@ -49,10 +49,20 @@ class NetworkTable(unittest.TestCase):
 
     @unittest.expectedFailure
     def test_subnet_with_host_bits_set_is_rejected(self):
-        """The one that matters: a host IP wearing a subnet's clothes.
+        """Not schema hygiene: this one is a privacy leak.
 
-        [ip redacted]/24 identifies the machine, which is exactly what the
-        privacy rule exists to prevent, and the current CI grep accepts it.
+        docs/conventions.md, "Privacy in public reports". [ip redacted]/24
+        identifies the reporter's machine, and a hand-written report is exactly
+        where it will appear, because whoever writes it copies what `ip addr`
+        printed. The current CI grep accepts it, since it only looks for a
+        `/NN` suffix.
+
+        Two things that must survive a future reader who finds this pedantic:
+        it never softens into a warning — a report merged into a public
+        repository cannot be unpublished — and it is never "fixed" by
+        normalising the address to 192.168.10.0/24, which hides a leak that has
+        already travelled in the contributor's pull request. Reject, and tell
+        the sender.
         """
         self.assert_rejected(network('subnet = "[ip redacted]/24"'), "subnet")
 

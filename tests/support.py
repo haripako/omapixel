@@ -147,21 +147,83 @@ MIN_IPV4_PREFIX = 30
 MIN_IPV6_PREFIX = 64
 
 
+def _is_publishable_network(token: str) -> bool:
+    """True for a bare subnet, false for anything that identifies a machine.
+
+    Decided by the `ipaddress` module rather than by shape. "Ends in .0 and has
+    a prefix" is a syntactic proxy for a semantic property, and it blesses
+    192.168.10.0/32 — which is exactly one machine.
+    """
+    import ipaddress
+
+    if "/" not in token:
+        return False
+    try:
+        network = ipaddress.ip_network(token, strict=False)
+        address = ipaddress.ip_address(token.split("/")[0])
+    except ValueError:
+        return False
+
+    if network.network_address != address:
+        return False  # host bits set: an address wearing a subnet's clothes
+    limit = MIN_IPV4_PREFIX if network.version == 4 else MIN_IPV6_PREFIX
+    return network.prefixlen <= limit
+
+
 def privacy_violations(text: str) -> list[str]:
     """Every MAC address and host IP in `text`, as human-readable findings.
 
     A bare subnet is allowed and is the whole point of the field: 192.168.10.0/24
-    says what Quick Share needs to know without identifying the machine. Note
-    that carrying a prefix is not enough — [ip redacted]/24 is a host address
-    wearing a subnet's clothes, and the CI grep it replaces let that through.
+    says what Quick Share needs to know without identifying the machine. Carrying
+    a prefix is not enough — [ip redacted]/24 is a host address wearing a
+    subnet's clothes, and the CI grep this replaces let that through.
+
+    Enforcing docs/conventions.md, "Privacy in public reports". A report is
+    written by a stranger, merged into a public repository and kept in its git
+    history forever, so a leak cannot be unpublished. Two consequences that
+    outlive whoever reads this next:
+
+      * **This never softens into a warning.** A rejected report is a fixable
+        mistake; a merged one is not.
+      * **Never "fix" a leak by normalising it.** Rewriting [ip redacted]/24 to
+        192.168.10.0/24 hides the address without unpublishing it — it already
+        travelled in the contributor's pull request — and leaves everyone
+        believing the system worked. Reject loudly and tell the sender to edit
+        it at the source.
+
+    **What this does NOT detect**, listed deliberately, because a privacy check
+    that people trust more than it deserves is worse than a grep nobody trusts:
+
+      * MACs written without separators (`106FD9DA5A16`) or Cisco-style
+        (`106f.d9da.5a16`). Twelve hex digits in a row match half the log
+        output in the world, and a false positive here is a red build a
+        stranger cannot fix.
+      * Hostnames, serial numbers, Bluetooth device names, account addresses.
+      * Anything obfuscated on purpose. This stops accidents, not adversaries.
     """
     found = [f"MAC address {m.group(0)}" for m in MAC_RE.finditer(text)]
+    seen_spans: list[tuple[int, int]] = [m.span() for m in MAC_RE.finditer(text)]
+
+    def overlaps_mac(span: tuple[int, int]) -> bool:
+        return any(start < span[1] and span[0] < end for start, end in seen_spans)
 
     for match in IPV4_RE.finditer(text):
-        address = match.group(0).split("/")[0]
-        if match.group(1) and address.endswith(".0"):
+        token = match.group(0)
+        if not _is_publishable_network(token):
+            found.append(f"host IP {token.split('/')[0]}")
+
+    import ipaddress
+
+    for match in IPV6_CANDIDATE_RE.finditer(text):
+        token = match.group(0)
+        if overlaps_mac(match.span()):
             continue
-        found.append(f"host IP {address}")
+        try:
+            ipaddress.ip_address(token.split("/")[0])
+        except ValueError:
+            continue  # a timestamp, a range, a fragment of something else
+        if not _is_publishable_network(token):
+            found.append(f"host IPv6 {token.split('/')[0]}")
     return found
 
 
@@ -339,7 +401,9 @@ def write_sandbox(
         lines = body.splitlines()
         shebang, rest = lines[0], lines[1:]
         if log is not None:
-            rest.insert(0, f'echo "{name} $*" >> "{log}"')
+            # printf, not echo: a stub name or a path with a quote in it would
+            # otherwise break the script it is embedded in.
+            rest.insert(0, f'printf "%s %s\\n" "{name}" "$*" >> "{log}"')
         path = directory / name
         path.write_text("\n".join([shebang, *rest]) + "\n")
         path.chmod(path.stat().st_mode | stat.S_IEXEC | stat.S_IXGRP | stat.S_IXOTH)
@@ -355,5 +419,18 @@ def write_sandbox(
 
 
 def sandbox_env(directory: Path, **extra: str) -> dict[str, str]:
-    """The environment a sandboxed run gets: our PATH, and a C locale."""
-    return {**os.environ, "PATH": str(directory), "LC_ALL": "C", "LANG": "C", **extra}
+    """The environment a sandboxed run gets: our PATH, C locale, empty HOME.
+
+    HOME matters as much as PATH here. `omapixel-status` reads
+    ~/.local/share/omarchy/version by absolute path, which PATH cannot
+    intercept, so a run that inherited the real HOME would pick up this
+    machine's Omarchy version and behave differently in CI or in a clean VM.
+    """
+    return {
+        **os.environ,
+        "PATH": str(directory),
+        "HOME": str(directory),
+        "LC_ALL": "C",
+        "LANG": "C",
+        **extra,
+    }

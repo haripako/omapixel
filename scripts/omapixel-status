@@ -151,11 +151,31 @@ def probe_file_transfer() -> dict:
         )
 
     provider = pkg_version("r-quick-share") or "rquickshare"
-    running = run(["pgrep", "-x", "rquickshare"])[0] == 0
-    if not running:
+
+    if run(["pgrep", "-x", "rquickshare"])[0] != 0:
         return capability(
             NO_ANSWER, "rquickshare is installed but not running", provider,
             {"running": False, "peers": unavailable("rquickshare is not running")},
+        )
+
+    # A running process is not the same as a working one. Check the observable
+    # effect — a listening socket — rather than trusting that the process being
+    # alive means it is serving. This machine has produced four separate
+    # subsystems tonight that reported confidently and wrongly about
+    # themselves; see the doctor rule in docs/07-plan.md.
+    rc, sockets = run(["ss", "-ltnHp"])
+    if rc != 0:
+        return capability(
+            NO_ANSWER, "rquickshare is running but its socket could not be checked",
+            provider,
+            {"running": True, "peers": unavailable("socket state unknown")},
+        )
+    if "rquickshare" not in sockets:
+        return capability(
+            NO_ANSWER,
+            "rquickshare is running but is not listening for transfers",
+            provider,
+            {"running": True, "peers": unavailable("not listening")},
         )
 
     # Deliberately not reporting the listening port. It is chosen afresh on

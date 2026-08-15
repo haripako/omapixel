@@ -32,6 +32,12 @@ here:
   against stubs, with the `PATH` replaced wholesale. That `omapixel-status`
   emits valid JSON with nothing installed is a fact about the code — not about a
   Pixel and not about a pair of earbuds. Entries below say which they are.
+- **Measured against the emulator is its own kind, and it is written out in
+  full.** A virtual Quick Share peer is not a Pixel. Anything exercised against
+  it is recorded as *measured against the emulator*, never as *measured*. This
+  is the qualification most likely to erode, because it will be the easiest and
+  most available thing to run — so it is stated here rather than left to
+  memory.
 
 Entries are not deleted when they turn out to be wrong. A correction is a new
 entry that says what was wrong and what replaced it.
@@ -339,6 +345,44 @@ The rule came out of four separate cases in a single day where a tool's own
 words were the misleading part, and it is recorded with that evidence attached
 rather than as a moral. **All four would have produced a widget that was
 confident and wrong.**
+
+**decision** — Build a **virtual Pixel**: a simulated Quick Share peer, local,
+that exercises the transfer path without the physical phone, and that reports
+errors, successes and state explicitly rather than failing in silence.
+
+It takes priority because F1 is blocked twice over — by hardware that has not
+arrived, and by a measured risk, since launching `rquickshare` crashes
+`bluetoothd` three times out of three and leaves the machine without a pointer.
+A virtual peer unblocks both, and can run in CI and in a clean VM. The status
+contract already has the hole it fits: `peers` is never `[]` but `unavailable`
+with a reason, *until discovery exists*. This is what makes it exist.
+
+Three rules come with it, and they are not negotiable per session:
+
+1. **No Bluetooth.** The emulator does not bring up BLE, does not talk to
+   `bluetoothd`, does not touch the adapter. LAN only — mDNS and TCP. If it
+   turns out Quick Share discovery is impossible without the BLE advertisement,
+   **that is a finding to report, not a licence to switch it on.**
+2. **A virtual Pixel is not a Pixel.** It promotes no capability and closes no
+   F1 box. It closes test-infrastructure boxes. A tick against "test receiving
+   PC ← phone" requires the phone, and this is not the phone.
+3. **The emulator has one owner**, in its own directory, under the same rules as
+   the rest of the tooling.
+
+Rule 2 is the one that will erode, because the emulator will be the easiest
+thing in the project to run and the only one always available. **Everything
+exercised against it is written "measured against the emulator", in full.**
+
+**open** — Does Quick Share discovery work over pure LAN, with no BLE
+advertisement at all? The whole emulator rests on the answer being yes, and that
+is currently a hypothesis, held by somebody who said plainly it should not be
+believed on their say-so.
+
+**decision** — The interface between the layer that measures the device and the
+layer that draws it is agreed **in writing, before it is written**, and whoever
+changes it says so beforehand rather than afterwards. **A widget that invents a
+number is worse than an empty widget.** Same principle as the rule above: the
+drawing layer never fabricates, and never simulates hardware it cannot reach.
 
 **decision, proposed** — The same criterion applies to `doctor`, and more
 sharply. [Packaging](05-packaging.md) already says `doctor` is the
