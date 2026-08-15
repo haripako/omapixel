@@ -69,9 +69,44 @@ function batteryCells(battery) {
   return { cells: [], note: battery.reason || "unavailable", complete: false };
 }
 
+
+// --- staleness ----------------------------------------------------------------
+
+// `as_of` is the moment a capability was probed, never the moment this was
+// drawn. The reason it matters to a widget: the bar redraws far more often than
+// it polls, so without the stamp a reading from a minute ago and a fresh one
+// are painted identically.
+//
+// An absent or unparseable stamp is UNKNOWN, not fresh. Degrading the other way
+// would let an old producer pass its readings off as current, which is the same
+// direction the contract forbids for provenance.
+function freshness(asOf, nowMs, staleAfterSeconds) {
+  if (typeof asOf !== "string" || asOf === "") {
+    return { known: false, stale: null, ageSeconds: null };
+  }
+  var t = Date.parse(asOf);
+  if (isNaN(t)) return { known: false, stale: null, ageSeconds: null };
+  var age = Math.max(0, Math.round((nowMs - t) / 1000));
+  return { known: true, stale: age > staleAfterSeconds, ageSeconds: age };
+}
+
+// --- reachability -------------------------------------------------------------
+
+// "paired but out of range" and "nothing paired" are two states with two
+// different fixes -- turn the phone on, or pair it -- and they were
+// indistinguishable until the contract split them. The widget has to say which.
+function phoneSummary(capability) {
+  var st = (capability && capability.state) || {};
+  var paired = Array.isArray(st.devices) ? st.devices.length : 0;
+  if (paired > 0 && st.reachable === false) {
+    return { summary: "out of range", action: "wake", paired: paired };
+  }
+  return null;
+}
+
 // --- a slot in the bar --------------------------------------------------------
 
-function slot(name, capability) {
+function slot(name, capability, nowMs, staleAfterSeconds) {
   if (!capability || typeof capability !== "object") {
     return {
       name: name, tone: UNKNOWN.tone, glyph: UNKNOWN.glyph,
@@ -94,19 +129,39 @@ function slot(name, capability) {
     };
   }
 
+  var summary = capability.status === "ready" ? "ok"
+              : capability.status.replace(/_/g, " ");
+  var action = look.action;
+
+  // Paired-but-unreachable outranks the generic status text, because it is the
+  // one the user can act on.
+  var reach = name === "phone" ? phoneSummary(capability) : null;
+  if (reach) {
+    summary = reach.summary;
+    action = reach.action;
+  }
+
+  var fresh = freshness(capability.as_of, nowMs, staleAfterSeconds);
+
   return {
     name: name,
-    tone: look.tone,
+    // A stale or unstamped reading is not drawn with the confidence of a fresh
+    // one, whatever it says.
+    tone: (!fresh.known || fresh.stale) && capability.status === "ready"
+          ? "unsure" : look.tone,
     glyph: look.glyph,
-    summary: capability.status === "ready" ? "ok" : capability.status.replace(/_/g, " "),
+    summary: summary,
     detail: detail,
-    action: look.action,
+    action: action,
+    ageSeconds: fresh.ageSeconds,
+    stale: fresh.known ? fresh.stale : null,
   };
 }
 
 // --- the whole widget ---------------------------------------------------------
 
-function model(payload) {
+function model(payload, nowMs, staleAfter) {
+  staleAfter = staleAfter || 120;
   if (!payload || typeof payload !== "object") {
     return { broken: true, detail: "no output from the status command", slots: [] };
   }
@@ -119,9 +174,9 @@ function model(payload) {
     broken: false,
     detail: null,
     slots: [
-      slot("buds", caps["buds"]),
-      slot("phone", caps["phone-link"]),
-      slot("transfer", caps["file-transfer"]),
+      slot("buds", caps["buds"], nowMs, staleAfter),
+      slot("phone", caps["phone-link"], nowMs, staleAfter),
+      slot("transfer", caps["file-transfer"], nowMs, staleAfter),
     ],
   };
 }
