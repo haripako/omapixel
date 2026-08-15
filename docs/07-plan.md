@@ -61,10 +61,22 @@ drops with nothing in the log" history: the segfault is recorded by the kernel,
 not by the `bluetooth` unit,** so anybody looking at `journalctl -u bluetooth`
 would have seen nothing, forever.
 
-Not yet established: the exact trigger. Both crashes coincide with a start, and a
-kill without a restart did not produce one, which points at the BLE listener
-coming up rather than going down. Reproducing it is a 30-second test and it has
-not been run yet.
+**Reproduced, three times out of three.** A controlled test on 2026-08-15
+launched `rquickshare` against a clean baseline and `bluetoothd` segfaulted in
+the same second, 23:15:49. Killing it without a restart produces no crash, so
+the trigger is the startup path, where the BLE listener comes up. Full detail in
+[reference setup](04-reference-setup.md).
+
+Two questions this opens, and the second one is the alarming one:
+
+- Is the bug rquickshare-specific, or does it live in BlueZ's advertising path?
+  A one-command isolation test settles it, and if plain BLE advertising crashes
+  `bluetoothd` too, this is a BlueZ 5.87 bug to report upstream.
+- **Does it threaten B1's earbuds half?** `pbpctrl` speaks to the buds over BLE
+  on the same adapter and the same BlueZ. If the crash is in the BLE path rather
+  than in anything Quick Share does, then it is not a Quick Share problem at
+  all — it is underneath the entire Bluetooth half of this project, and it
+  outranks everything else in the plan.
 
 **Done when:**
 - A file moves phone → PC and PC → phone.

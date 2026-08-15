@@ -95,10 +95,45 @@ merely consistent, and it would be exactly the sort of plausible-sounding
 shortcut this project refuses to take. F1 tests it directly by repeating the
 measurement with the phone's screen on.
 
-**The Bluetooth adapter has form.** This MT7922 has a history of unexplained
-disconnections with the MX Master: it drops and does not reconnect, without
-writing a line to the log. If anything odd happens while pairing the buds,
-suspect the adapter before blaming the new software.
+**The Bluetooth adapter had form, and the mystery is now solved.** This machine
+had a long-standing history of the MX Master dropping for no visible reason,
+"without writing a line to the log". Measured on 2026-08-15: **`bluetoothd`
+segfaults, and `journalctl -u bluetooth` never shows it because the kernel is
+what records the crash.** Anybody looking in the obvious place was guaranteed to
+find nothing, indefinitely.
+
+```bash
+journalctl -k --since today | grep 'bluetoothd.*segfault'
+```
+
+**Trigger, reproduced three times out of three:** launching `rquickshare`.
+
+| Time | What was launched | Result |
+|---|---|---|
+| 23:00:34 | `rquickshare` (via a `--help` that it ignores and starts anyway) | `hci0: ACL packet for unknown connection handle`, mouse re-enumerates at 23:00:49 |
+| 23:08:50 | `rquickshare` restarted | Mouse re-enumerates at 23:09:06 |
+| 23:15:49 | `rquickshare` started as a controlled test | Segfault in the same second |
+
+Killing `rquickshare` without restarting it does **not** produce a crash, so it
+is the startup path — where the BLE listener comes up — and not shutdown.
+systemd restarts `bluetoothd` each time and the mouse re-attaches after roughly
+fifteen seconds. That gap is the input stall.
+
+Crash signature: `segfault at 55f8f18e0f40 ip 000055f8f18e0f40`. The instruction
+pointer equals the faulting address, meaning execution was transferred there.
+**Inference, not yet confirmed:** that is the shape of a call through a corrupted
+or freed function pointer. Confirming it needs the backtrace, and the core dumps
+are root-owned (`coredumpctl` lists them as inaccessible without privileges).
+
+Two things this does not yet tell us, and both matter:
+
+- **Whether the bug is rquickshare-specific or lives in BlueZ's advertising
+  path.** If plain BLE advertising crashes `bluetoothd` too, this is a BlueZ
+  5.87 bug worth reporting upstream rather than an integration quirk.
+- **Whether it threatens F3.** `pbpctrl` also talks to the earbuds over BLE on
+  this same adapter and BlueZ version. If the crash is in the BLE path rather
+  than in anything Quick Share does, the entire Bluetooth half of this project
+  sits on top of it.
 
 ## A note for anyone reading logs on Omarchy
 
