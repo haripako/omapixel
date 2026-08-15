@@ -26,6 +26,11 @@ STATUSES = ("works", "partial", "broken", "blocked")
 METHODS = ("measured", "derived")
 KINDS = ("phone", "earbuds")
 
+# The phases in docs/03-roadmap.md. A capability belongs to the matrix once it
+# belongs to a phase — that is what separates a row from an aspiration. Anything
+# still being researched lives in docs/features.md, which is not this file.
+PHASES = ("F0", "F1", "F2", "F3", "F4", "F5")
+
 # Worst-first, so the summary leads with the problems rather than the wins.
 STATUS_ORDER = ("broken", "partial", "works", "blocked")
 
@@ -69,6 +74,13 @@ def load_capabilities() -> list[dict]:
         for field in ("name", "phase"):
             if not cap.get(field):
                 raise ReportError(f"capabilities.toml: {cap_id!r} has no {field}")
+        if cap["phase"] not in PHASES:
+            raise ReportError(
+                f"capabilities.toml: {cap_id!r} has phase={cap['phase']!r}, "
+                f"expected one of {', '.join(PHASES)}. A capability joins the "
+                f"matrix when it joins a phase; until then it belongs in "
+                f"docs/features.md"
+            )
     return caps
 
 
