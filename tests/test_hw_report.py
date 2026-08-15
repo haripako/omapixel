@@ -343,9 +343,20 @@ class NothingSpeaksBluetoothInProcess(unittest.TestCase):
     drives the emulator.
     """
 
+    # Use, not mention. The first version of this matched the constant anywhere
+    # and flagged the emulator's own audit — the code that enforces the rule —
+    # four times. A test satisfied by deleting the guarantee it watches is worse
+    # than no test, so what is forbidden is *constructing* a Bluetooth socket or
+    # *importing* something that can reach BlueZ. Comparing a file descriptor's
+    # family against AF_BLUETOOTH is the opposite of the sin: it is the check.
     FORBIDDEN = re.compile(
-        r"AF_BLUETOOTH|BTPROTO_|org\.bluez"
-        r"|import\s+bluetooth\b|from\s+bluetooth\s+import|pybluez|bleak|dbus_next"
+        r"socket\s*\(\s*[^)]*AF_BLUETOOTH"
+        # `family=AF_BLUETOOTH` is a constructor argument; `family ==` is a
+        # comparison, which is how an audit asks the question.
+        r"|family\s*=(?!=)\s*[^,)]*AF_BLUETOOTH"
+        r"|BTPROTO_"
+        r"|import\s+(bluetooth|dbus|pydbus|bleak)\b"
+        r"|from\s+(bluetooth|dbus|pydbus|bleak)\s+import"
     )
 
     def programs(self) -> list[Path]:
@@ -424,14 +435,30 @@ class NothingSpeaksBluetoothInProcess(unittest.TestCase):
         self.assertTrue(hits, "the check no longer detects an AF_BLUETOOTH socket")
 
     def test_the_check_tolerates_an_audit_that_names_what_it_refuses(self):
+        """The calibration backend asked for, in both directions.
+
+        An audit walks its own file descriptors and reports any that turn out
+        to be Bluetooth. It names the constant, in prose, in a message and as a
+        comparison. None of that opens anything.
+        """
         audit = (
             'import socket\n'
             '# 2. The AF_BLUETOOTH constant must not be reachable.\n'
             'family = getattr(socket, "AF_BLUETOOTH", None)\n'
+            'if s.family == socket.AF_BLUETOOTH:\n'
+            '    problems.append(f"fd {fd} is an AF_BLUETOOTH socket")\n'
         )
         hits = [n for n, line in self.code_only(audit).items()
                 if self.FORBIDDEN.search(line)]
         self.assertEqual(hits, [])
+
+    def test_the_check_catches_an_import_that_can_reach_bluez(self):
+        for line in ("import dbus", "from pydbus import SystemBus", "import bleak"):
+            with self.subTest(line=line):
+                self.assertTrue(
+                    any(self.FORBIDDEN.search(code)
+                        for code in self.code_only(line + "\n").values())
+                )
 
 
 if __name__ == "__main__":

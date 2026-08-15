@@ -132,6 +132,35 @@ def assert_no_bluetooth(context: str) -> None:
         raise SystemExit(3)
 
 
+
+# --- rule 4: it declares its own limits, where they are read ------------------
+
+LIMITS = """\
+WHAT THIS DOES VALIDATE
+  the LAN path, the status contract, the feedback surface, and whether the
+  errors make sense to somebody who has not read the source
+
+WHAT IT DOES NOT VALIDATE YET
+  real discovery, pairing, and anything that depends on a BLE advertisement or
+  on an actual Pixel being on the same subnet
+
+WHAT IT CAN NEVER VALIDATE
+  the F1 discovery-flakiness box: how many attempts until the device appears,
+  and whether having the phone's screen on helps. That flakiness lives in
+  Android's radio management, not in the protocol. This peer advertises
+  continuously, so it cannot reproduce it -- not "not yet", structurally never.
+  Green transfers here are not evidence for that box.
+
+Nothing measured against this peer may be written as measured, promoted in
+data/capabilities.toml, or used to tick an F1 box. It closes test-infrastructure
+boxes only."""
+
+
+def print_limits() -> None:
+    for line in LIMITS.splitlines():
+        say("limits", line) if line.startswith("  ") else say("LIMITS", line)
+
+
 # --- mDNS ---------------------------------------------------------------------
 
 
@@ -189,7 +218,26 @@ class Advertisement:
 # --- the peer -----------------------------------------------------------------
 
 
-def serve(name: str, port: int, once: bool, reject: bool) -> int:
+# Failure modes. Hari asked for explicit feedback on ERROR, success and state,
+# and a peer that can only succeed means the whole feedback surface gets
+# designed, built and tested against the happy path — so the first real error a
+# user sees would be the first error anyone had ever seen.
+#
+# A mode produces a failure; it does not measure one. A failure produced here is
+# written "measured against the emulator", exactly like a success. That will be
+# forgotten sooner than the success version, because an error is more convincing
+# than a win.
+FAILURE_MODES = {
+    "none": "accept normally",
+    "reject": "refuse the transfer",
+    "drop": "accept, then close mid-transfer",
+    "timeout": "accept and never answer",
+    "vanish": "stop advertising while still listening",
+    "absent": "never advertise at all, so there is no peer to find",
+}
+
+
+def serve(name: str, port: int, once: bool, mode: str) -> int:
     assert_no_bluetooth("startup")
 
     listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -204,11 +252,19 @@ def serve(name: str, port: int, once: bool, reject: bool) -> int:
     say("listening", f"tcp/{actual_port} on all interfaces")
 
     advert = Advertisement(name, actual_port)
-    advert.start()
+    if mode == "absent":
+        say("mode absent", "not advertising: exercising the no-peer-found path")
+    else:
+        advert.start()
 
     # The audit runs again after every socket and subprocess exists, because
     # rule 1 is about what the process actually did, not what it intended.
     assert_no_bluetooth("after opening sockets")
+    # Printed on every run, not kept in a document. Whoever runs this next may
+    # never have seen a word of the discussion that produced it, and their
+    # natural mistake will be to report "transfer validated" when what was
+    # validated is the LAN path.
+    print_limits()
     say("ready", "no Bluetooth in use; this peer is LAN-only and simulated")
 
     stopping = threading.Event()
@@ -231,12 +287,23 @@ def serve(name: str, port: int, once: bool, reject: bool) -> int:
         # pasted into issues, same rule as everywhere else in the project.
         say("peer connected", f"from port {addr[1]}")
         with conn:
-            if reject:
-                say("rejected", "--reject was given, refusing the transfer")
+            if mode == "reject":
+                say("rejected", "the peer refused the transfer")
                 conn.sendall(b"REJECTED simulated peer refusing by request\n")
+            elif mode == "drop":
+                say("accepted", "simulated transfer accepted")
+                conn.sendall(b"ACCEPTED simulated peer, no data was stored\n")
+                say("failed", "closing mid-transfer, on purpose")
+                conn.shutdown(socket.SHUT_RDWR)
+            elif mode == "timeout":
+                say("hanging", "accepted the connection and answering nothing")
+                stopping.wait(30)
             else:
                 say("accepted", "simulated transfer accepted")
                 conn.sendall(b"ACCEPTED simulated peer, no data was stored\n")
+                if mode == "vanish":
+                    say("vanishing", "withdrawing the advertisement, still listening")
+                    advert.stop()
         handled += 1
         if once:
             break
@@ -254,7 +321,11 @@ def main(argv: list[str]) -> int:
     parser.add_argument("--name", default=DEFAULT_NAME)
     parser.add_argument("--once", action="store_true", help="handle one and exit")
     parser.add_argument(
-        "--reject", action="store_true", help="refuse transfers, to exercise the error path"
+        "--mode", default="none", choices=sorted(FAILURE_MODES),
+        help="; ".join(f"{k}: {v}" for k, v in FAILURE_MODES.items()),
+    )
+    parser.add_argument(
+        "--limits", action="store_true", help="print what this can and cannot validate"
     )
     parser.add_argument(
         "--self-check",
@@ -262,6 +333,10 @@ def main(argv: list[str]) -> int:
         help="audit that no Bluetooth is reachable, print the result, exit",
     )
     args = parser.parse_args(argv[1:])
+
+    if args.limits:
+        print_limits()
+        return 0
 
     if args.self_check:
         problems = bluetooth_audit()
@@ -274,7 +349,7 @@ def main(argv: list[str]) -> int:
         say("self-check passed", "no Bluetooth sockets, no BlueZ, no BT binaries")
         return 0
 
-    return serve(args.name, args.port, args.once, args.reject)
+    return serve(args.name, args.port, args.once, args.mode)
 
 
 if __name__ == "__main__":

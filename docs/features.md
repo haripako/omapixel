@@ -246,6 +246,32 @@ Three T2 targets need no contract because they produce no state the desktop show
 — `second-display`, `phone-mic` and `phone-audio-in` are audio and display
 routing, and their state already lives in PipeWire and Hyprland.
 
+### The seven rows want three fields, not seven
+
+Read the last column down instead of across and the same three shapes keep
+appearing. They are worth adding once, generally, rather than seven times in
+seven bespoke forms:
+
+- **`as_of`, a staleness stamp on the value itself.** `phone-battery` needs the
+  age of the reading, `focus-sync` needs to know which side changed last, and
+  `buds-multipoint`'s idea of who owns the buds goes stale the instant the phone
+  takes them. A figure with no timestamp cannot be told apart from the same
+  figure an hour later, and the bar will draw both identically.
+- **Absent-with-a-reason, as a first-class value.** Four rows need it and each
+  needs it for a different reason: unreachable is not 0 %, "no peer" is not
+  "failed", "not connected" is not "connected but owned elsewhere", and a
+  low-confidence code match must produce nothing rather than a guess. The status
+  contract already has exactly this shape — `peers` is never an empty list, it is
+  unavailable with a reason. That primitive wants generalising, not copying.
+- **Provenance.** `buds-battery` already carries `source`
+  (`avrcp` / `proprietary` / `null`). `phone-battery` has the same problem in a
+  different coat: which channel produced this number changes what it means. And
+  the virtual peer needs to declare itself simulated. That is the same field at
+  three sites, and it should be one field.
+
+If those three exist generally, every "what unknown has to look like" cell above
+is satisfied by construction rather than by seven people remembering.
+
 ## Sources
 
 - [Continuity features and requirements for Apple devices — Apple Support](https://support.apple.com/en-us/108046)

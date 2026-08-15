@@ -365,6 +365,29 @@ Surfaces for `clipboard`, `sms`, `screen-mirror`, `remote-input` and everything
 in F5 are deliberately absent: no design has been proposed for them, and absent
 means untested here too.
 
+### Failure states are not capabilities
+
+A transfer can stall, be rejected, time out, or find no peer. Those are **states
+of `file-send` and `file-receive`**, not capabilities of their own, and they get
+no rows above. Inventing `transfer-rejected` as an id would break the join key
+the whole matrix hangs on, and the test that checks this table would be right to
+fail. The vocabulary lives here instead:
+
+| State | The user must be able to tell | Must not be drawn as |
+|---|---|---|
+| Transferring | That it started, and that it is still moving | A bar that could be stuck. Show movement or show elapsed time |
+| Rejected | That the other end said no — a decision, not a fault | An error. Nothing is broken |
+| Failed | That it stopped, and at whose end | A generic failure with no side named |
+| Timed out | That nothing answered, and for how long we waited | An indefinite spinner. That is the state this replaces |
+| No peer | That discovery found nothing, not that nothing exists | An empty list. Empty reads as "none available", which is a claim |
+
+Each of these has to be producible on demand before it can be designed, which is
+what the emulator's deliberate failure modes are for. And the corollary to the
+provenance rule holds in both directions: **a failure produced by the emulator
+is not a measured failure either.** It is measured against the emulator, and it
+will be the first thing forgotten, because a convincing error persuades harder
+than a convincing success.
+
 ### Simulated data must look simulated
 
 A virtual Quick Share peer is planned so the transfer path can be exercised
