@@ -1,0 +1,17 @@
+version: 2
+
+updates:
+  # The workflow pins actions to commit SHAs so a moved tag cannot change what
+  # runs. That trade is only safe if something keeps the pins current, which is
+  # this. Dependabot bumps the SHA and updates the trailing version comment.
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: monthly
+    commit-message:
+      prefix: "ci"
+    labels:
+      - dependencies
+
+# No other ecosystem is listed on purpose. scripts/build-matrix.py depends on
+# the standard library only, and it is meant to stay that way: see SECURITY.md.
