@@ -125,6 +125,35 @@ pointer equals the faulting address, meaning execution was transferred there.
 or freed function pointer. Confirming it needs the backtrace, and the core dumps
 are root-owned (`coredumpctl` lists them as inaccessible without privileges).
 
+**The crash has two outcomes, not one.** The first two times, systemd restarted
+`bluetoothd` and the mouse re-attached after about fifteen seconds. The third
+time it did not come back at all: BlueZ reported `Connected: yes` with the HID
+UUID present, while `/proc/bus/input/devices` had no MX Master and the kernel
+had logged no re-enumeration. A phantom connection — the ACL is up, the HID
+profile never re-bound, so there is no input node and the user has no pointer.
+That second form matches the machine's original "drops and does not reconnect"
+symptom exactly.
+
+**Recovery, measured, and the ordering matters.** Naive retries make it worse:
+
+| Step | Result |
+|---|---|
+| `bluetoothctl disconnect` | Works |
+| `bluetoothctl connect` immediately after | `org.bluez.Error.Failed le-connection-abort-by-local` |
+| `power off` then `power on`, then connect | `br-connection-canceled` |
+| Two more connects straight away | `org.bluez.Error.InProgress` — the retries queue behind a pending attempt and block each other |
+| Wait for the pending attempt to expire, then connect | **Succeeds.** HID re-binds, `HID++ 4.5 device connected` |
+
+So the recovery is a disconnect, a genuine pause, and one connect. Retrying
+faster is actively counterproductive:
+
+```bash
+bluetoothctl disconnect [mac redacted]; sleep 15; bluetoothctl connect [mac redacted]
+```
+
+This is a `doctor` check and a `doctor` remedy, and it is the kind of thing that
+only shows up by breaking a real machine.
+
 Two things this does not yet tell us, and both matter:
 
 - **Whether the bug is rquickshare-specific or lives in BlueZ's advertising
