@@ -27,13 +27,39 @@ has not arrived and blocks neither F1 nor F2.
 In: F0 closed.
 Out: sending and receiving from the Pixel without a cable.
 
-- [ ] Install `r-quick-share` from the AUR
+- [x] Install `r-quick-share` from the AUR — `r-quick-share 0.11.5-5`, built from source
 - [ ] Test receiving PC ← phone and sending PC → phone
 - [ ] Measure the discovery problem: how many attempts until the device appears, and whether having the phone's screen on helps
-- [ ] Verify the tray indicator under Hyprland with the Quickshell bar
+- [x] Verify the tray indicator under Hyprland with the Quickshell bar
 - [ ] If autostart is needed, set it up as a user service
 
 Testable in full on the Pixel 7 Pro. Does not wait for the Pixel 11 Pro.
+
+### The tray indicator works, and is invisible anyway
+
+Measured 2026-08-15, and worth reading before designing anything around a tray
+icon. On launch, `rquickshare` registers a StatusNotifierItem correctly and
+Quickshell picks it up: the watcher goes from one registered item to two, and the
+new one resolves to the `rquickshare` process, `Status: Active`, with a menu
+object exposed. So the answer to "does the tray work under Wayland", which no
+upstream documentation covered, is **yes**.
+
+It is still not visible on the bar. Omarchy's tray module splits items into
+**pinned** and a **collapsed drawer**, and the drawer starts shut behind a
+chevron. An unpinned application is registered, live, and hidden.
+
+Two consequences:
+
+- Nothing here is broken, so this is not a bug to file upstream.
+- **A tray icon is not a delivery mechanism on this desktop.** Anything that
+  needs to be seen has to be a real bar widget, which is what F4 is for. Design
+  should treat the tray as a fallback, never as the surface.
+
+One spec detail worth recording for portability: `rquickshare` publishes its
+`IconName` as an absolute path (`/run/user/1000/tray-icon/...png`) rather than a
+themed icon name. Quickshell copes. A bar that reads the specification strictly
+may not, so on another desktop the icon may be missing even though the item
+registers.
 
 ## F2 — Clipboard and notifications
 
@@ -74,6 +100,10 @@ Out: all of it visible and usable from the desktop.
 
 The plugin scaffolding can be built against fake data before F3 lands, which is
 worth doing given the QML restart cycle.
+
+Anything drawn here answers to the [design rules](06-design.md): tokens from the
+active Omarchy theme, Pixel identity confined to the identity budget, and a
+defined appearance for every capability the matrix does not yet call `works`.
 
 ## F5 — Research (no promise anything comes of it)
 
