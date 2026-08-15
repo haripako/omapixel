@@ -1,2 +1,8 @@
 session.json
 *.log
+
+# Maintainer's local agent handoff notes. Deliberately not published: they
+# describe this specific machine and workspace, not the project.
+CLAUDE.md
+CLAUDE.local.md
+.claude/
