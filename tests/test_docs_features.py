@@ -30,6 +30,19 @@ DATA_HEADER = [
     "Target here", "Tier", "id", "Phase",
 ]
 
+# A second table that carries ids, registered by research on 2026-08-15 after
+# two ids slipped into it in the wrong style and the suite stayed green.
+# Declared by header, not swept for: prose in this file is full of backticked
+# tool names — `pbpctrl`, `wl-clipboard`, `btmgmt info` — and a global sweep
+# would demand bold on every passing mention of a promoted capability.
+EXPOSURE_HEADER = [
+    "Target", "Produced by", "Would have to expose", "Desktop consumes",
+    'What "unknown" has to look like',
+]
+
+# (header, index of the id column) for every table under the id contract.
+ID_TABLES = ((DATA_HEADER, -2), (EXPOSURE_HEADER, 0))
+
 ID_COLUMN = -2
 TIER_COLUMN = -3
 PHASE_COLUMN = -1
@@ -51,7 +64,7 @@ class FeaturesFormat(unittest.TestCase):
         cls.tables = parse_tables(cls.text)
         # Data tables are the seven-column ones. The tier legend and the other
         # narrow tables are distinguished by width, never by position.
-        cls.data_tables = [t for t in cls.tables if t.width == len(DATA_HEADER)]
+        cls.data_tables = [t for t in cls.tables if t.header == DATA_HEADER]
         cls.promoted = promoted_ids()
 
     def rows(self):
@@ -59,19 +72,42 @@ class FeaturesFormat(unittest.TestCase):
             for line, cells in table.rows:
                 yield line, cells
 
-    def id_cells(self):
-        for line, cells in self.rows():
-            cell = cells[ID_COLUMN]
-            if cell in ("—", "-", ""):
+    def id_cells(self, only: list[str] | None = None):
+        """Every id cell in every table registered under the id contract."""
+        for header, column in ID_TABLES:
+            if only is not None and header != only:
                 continue
-            # A cell may carry two ids: `call-notify`, `call-audio`.
-            for part in cell.split(","):
-                yield line, part.strip()
+            for table in self.tables:
+                if table.header != header:
+                    continue
+                for line, cells in table.rows:
+                    if len(cells) != len(header):
+                        continue  # reported by the ragged-row test
+                    cell = cells[column]
+                    if cell in ("—", "-", ""):
+                        continue
+                    # A cell may carry two ids: `call-notify`, `call-audio`.
+                    for part in cell.split(","):
+                        yield line, part.strip()
 
     # --- shape --------------------------------------------------------------
 
     def test_there_are_data_tables(self):
         self.assertTrue(self.data_tables, "no seven-column data tables found")
+
+    def test_every_registered_id_table_is_present(self):
+        """A renamed header silently removes a table from the contract.
+
+        Ausencia de rojo no es cobertura: if one of these stops matching, the
+        ids inside it stop being checked and nothing says so.
+        """
+        for header, _ in ID_TABLES:
+            with self.subTest(table=header[0]):
+                self.assertTrue(
+                    any(t.header == header for t in self.tables),
+                    f"no table with header {header!r}. If it was renamed, update "
+                    f"ID_TABLES; if it was deleted, delete its entry",
+                )
 
     def test_every_data_table_has_the_agreed_header(self):
         for table in self.data_tables:
@@ -171,9 +207,14 @@ class FeaturesFormat(unittest.TestCase):
             with self.subTest(line=line, id=cap_id):
                 self.assertRegex(cap_id, KEBAB_RE)
 
-    def test_proposed_ids_are_unique_within_the_document(self):
+    def test_proposed_ids_are_unique_within_the_catalogue(self):
+        """Uniqueness applies to the catalogue rows, which define the ids.
+
+        Not to the document: the exposure table discusses ids the catalogue
+        already proposed, so repetition there is the point, not a mistake.
+        """
         seen: dict[str, int] = {}
-        for line, raw in self.id_cells():
+        for line, raw in self.id_cells(only=DATA_HEADER):
             cap_id = re.sub(r"[`*]", "", raw)
             with self.subTest(id=cap_id):
                 self.assertNotIn(
@@ -182,6 +223,22 @@ class FeaturesFormat(unittest.TestCase):
                     f"{seen.get(cap_id)}",
                 )
             seen[cap_id] = line
+
+    def test_every_exposure_row_names_an_id_the_catalogue_proposed(self):
+        """The exposure table elaborates; it does not invent.
+
+        An id that appears only here is one nobody defined, and it would carry
+        the backtick style of a proposal without any row proposing it.
+        """
+        catalogue = {re.sub(r"[`*]", "", raw) for _, raw in self.id_cells(only=DATA_HEADER)}
+        for line, raw in self.id_cells(only=EXPOSURE_HEADER):
+            cap_id = re.sub(r"[`*]", "", raw)
+            with self.subTest(line=line, id=cap_id):
+                self.assertIn(
+                    cap_id, catalogue,
+                    f"features.md:{line}: `{cap_id}` appears in the exposure table "
+                    f"but no catalogue row proposes it",
+                )
 
     def test_no_proposed_id_nearly_collides_with_a_promoted_one(self):
         """`buds_anc` against `buds-anc` corrupts the join key silently."""

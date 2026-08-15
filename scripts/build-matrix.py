@@ -13,6 +13,7 @@ Requires nothing beyond the standard library (tomllib, Python 3.11+).
 
 from __future__ import annotations
 
+import re
 import sys
 import tomllib
 from pathlib import Path
@@ -35,8 +36,46 @@ PHASES = ("F0", "F1", "F2", "F3", "F4", "F5")
 STATUS_ORDER = ("broken", "partial", "works", "blocked")
 
 
+# Device reports are the only input to this repository written by a stranger
+# and rendered into a published document. Everything below reaches the matrix
+# as markdown, so a newline escapes the table, a pipe forges a column, and a
+# backtick escapes a code span — after which the contributor writes whatever
+# they like into a file whose own header promises that "every cell traces back
+# to a named reporter and a date".
+#
+# Rejected on load rather than escaped on render. Escaping would let the odd
+# value through and paint it nicely; rejecting tells the contributor what to
+# fix, and matches how this project handles a leaked MAC address.
+# Angle brackets are here because markdown renders raw HTML: an
+# "<!-- comment -->" in a value swallows the rest of the line and passes a
+# filter that only looks for pipes. Found by the security agent after the first
+# version of this check let exactly that through.
+# "](" is the two-character sequence that turns text into a link; the brackets
+# and parentheses are fine on their own, since model names use them.
+FORBIDDEN = re.compile(r"[|`<>\x00-\x1f\x7f]|\]\(")
+FORBIDDEN_DESCRIPTION = (
+    "a pipe, a backtick, an angle bracket, a markdown link, a newline "
+    "or a control character"
+)
+
+# [host] was previously copied into the document key and value, unvalidated,
+# so arbitrary keys became arbitrary markdown.
+HOST_KEYS = ("distro", "desktop", "kernel", "bluez", "bt_adapter", "arch", "shell")
+
+
 class ReportError(Exception):
     """A data file is malformed. Always names the file and the field."""
+
+
+def clean(value: str, where: str, path: Path) -> str:
+    """Reject anything that would escape the cell it is rendered into."""
+    if FORBIDDEN.search(value):
+        raise ReportError(
+            f"{path.name}: {where} contains {FORBIDDEN_DESCRIPTION}. "
+            f"These are refused rather than escaped, because this field is "
+            f"rendered into a published markdown document"
+        )
+    return value
 
 
 def load(path: Path) -> dict:
@@ -54,7 +93,7 @@ def require(data: dict, table: str, field: str, path: Path) -> str:
     value = section.get(field)
     if not isinstance(value, str) or not value.strip():
         raise ReportError(f"{path.name}: [{table}].{field} is missing or empty")
-    return value.strip()
+    return clean(value.strip(), f"[{table}].{field}", path)
 
 
 def load_capabilities() -> list[dict]:
@@ -98,9 +137,12 @@ def load_reports(known_ids: set[str]) -> list[dict]:
             "date": require(data, "reporter", "date", path),
             "vendor": require(data, "device", "vendor", path),
             "model": require(data, "device", "model", path),
-            "os": data.get("device", {}).get("os", "").strip(),
+            "os": clean(
+                str(data.get("device", {}).get("os", "")).strip(),
+                "[device].os", path,
+            ),
             "kind": require(data, "device", "kind", path),
-            "host": data.get("host", {}),
+            "host": validated_host(data.get("host", {}), path),
             "results": [],
         }
 
@@ -117,6 +159,11 @@ def load_reports(known_ids: set[str]) -> list[dict]:
                     f"{path.name}: unknown capability id {cap_id!r}. "
                     f"Ids must exist in data/capabilities.toml"
                 )
+            for field in ("tool", "notes"):
+                if field in result:
+                    result[field] = clean(
+                        str(result[field]).strip(), f"{cap_id!r}.{field}", path
+                    )
             for field, allowed in (("status", STATUSES), ("method", METHODS)):
                 value = result.get(field)
                 if value not in allowed:
@@ -135,6 +182,22 @@ def load_reports(known_ids: set[str]) -> list[dict]:
 
         reports.append(report)
     return reports
+
+
+def validated_host(host, path: Path) -> dict:
+    """[host] is free-form, but not arbitrary: keys are whitelisted and every
+    value is cleaned, because both are rendered straight into the document."""
+    if not isinstance(host, dict):
+        raise ReportError(f"{path.name}: [host] must be a table")
+    out = {}
+    for key, value in host.items():
+        if key not in HOST_KEYS:
+            raise ReportError(
+                f"{path.name}: [host].{key} is not a recognised key. "
+                f"Allowed: {', '.join(HOST_KEYS)}"
+            )
+        out[key] = clean(str(value).strip(), f"[host].{key}", path)
+    return out
 
 
 def device_label(report: dict) -> str:

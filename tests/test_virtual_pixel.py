@@ -29,6 +29,7 @@ more convincing than a win.
 from __future__ import annotations
 
 import importlib.util
+import re
 import socket
 import subprocess
 import sys
@@ -155,7 +156,10 @@ class VirtualPeer(unittest.TestCase):
                 for line in process.stdout:
                     lines.append(line.rstrip("\n"))
                     if "listening" in line and "tcp/" in line:
-                        port = int(line.split("tcp/")[1].split()[0])
+                        # The line carries more than the port now ("tcp/34391,
+                        # loopback only"), so take the digits rather than the
+                        # first whitespace-separated field.
+                        port = int(re.search(r"tcp/(\d+)", line).group(1))
                     if " ready" in line:
                         break
                 self.assertIsNotNone(port, "the peer never said which port it took")
