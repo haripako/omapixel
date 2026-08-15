@@ -337,6 +337,19 @@ right by accident**, which is the same family as the four cases above.
 both figures are true of their moment. Later the same evening, **150 green**,
 with 18 adversarial entries against the privacy detector.
 
+**reviewed, nothing found** — `SECURITY.md` and `.github/workflows/validate.yml`
+read in full on this date, from a security angle: actions pinned to SHAs with the
+reason written beside them, `contents: read`, no credentials persisted, and the
+MAC/IP invariant moved out of the workflow into the test suite with positive
+controls. **No finding.**
+
+This is recorded deliberately, and the distinction matters: it is a record that
+these files were reviewed on this date, **not a clean bill of health**. A review
+with no findings ages — six months from now the useful fact is when somebody
+last looked, not that they found nothing. Silence in a journal is
+indistinguishable from nobody having checked, which is the same failure this
+project keeps meeting elsewhere.
+
 **decision** — Two `omapixel-status` defects found by review — the Pixel phone
 counted as earbuds, and a dead `bluetoothd` reported as "nothing is paired" —
 were fixed the same day and kept as **regression tests rather than expected

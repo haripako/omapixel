@@ -2,10 +2,10 @@
 
 How anything this project draws on screen is allowed to look.
 
-> **Ownership.** This file and `docs/design/` belong to design. Development
-> seeded it on 15 August 2026 with the token facts measured on the reference
-> machine, so that design proposes against real numbers instead of against a
-> screenshot. Add to it; do not silently rewrite the measured sections.
+> **Ownership.** This file and `docs/design/` belong to design, which wrote
+> them. There is no handover pending. The measured sections are measurements,
+> not proposals: extend them, but do not restate their numbers without re-running
+> the commands that produced them.
 
 Everything in "What Omarchy actually gives us" was **measured** on the reference
 machine on 15 August 2026 against omarchy `4.0.0-1`. Everything about Material
@@ -127,10 +127,14 @@ grep -rhoE 'easing\.type: Easing\.[A-Za-z]+' . | sort | uniq -c | sort -rn
 grep -rhoE 'duration: [0-9]+' . | sort | uniq -c | sort -rn
 ```
 
-- 38 `NumberAnimation`, 14 `ColorAnimation`, 0 `SpringAnimation`. **There is not
-  one spring in the shell source of `4.0.0-1`.**
-- Easing is overwhelmingly `Easing.OutCubic` (26 uses), then `OutQuad` (7),
-  `InOutCubic` (5).
+- 38 `NumberAnimation`, 14 `ColorAnimation`, 10 `PropertyAnimation`, and 0
+  `SpringAnimation` — the zero being an absent line in the output, which is the
+  only way a zero is checkable. **There is not one spring in the shell source of
+  `4.0.0-1`.** The `PropertyAnimation` uses are mostly inside transitions rather
+  than interaction feedback; they are counted here so the command's output and
+  this list agree line for line.
+- Easing is overwhelmingly `Easing.OutCubic` (26 uses), then `OutQuad` (7), then
+  `InQuad` and `InOutCubic` tied at 5.
 - Durations cluster at 140 ms (10 uses), 160, 120, 180 and 260 for interaction
   feedback; the few values above 600 ms are ambient, not response.
 
@@ -459,6 +463,42 @@ from, and a value without provenance is not trusted enough to draw as fact.**
 Design cannot mark a distinction the data does not carry, so this is the one
 thing the interface layer must insist on before anything else in the contract
 gets settled.
+
+## The screen is an exposure surface
+
+Everything else in this document treats the display as somewhere to present
+things. It is also somewhere things get exposed. This project replicates a
+phone's notifications and its clipboard onto an ultrawide monitor that gets used
+with other people in the room, and both of those are private by default on the
+phone they came from.
+
+None of the data exists yet, which is exactly why these are settled now. They
+cost nothing today and cannot be undone once a widget ships with the wrong
+default.
+
+- **Notification replication defaults to the discreet end.** Sender, or a count.
+  Full message content is opt-in and never the default, because the person who
+  does not know the setting exists is precisely the person who did not want the
+  message read over their shoulder. Where the range should stop — content,
+  sender only, count only — is Hari's call, not this document's; until he makes
+  it, the default is the safe end.
+- **No surface ever renders clipboard content.** A "last clipboard item" widget
+  is a password viewer on the bar, and one-time codes and passwords are exactly
+  what crosses a phone-to-desktop clipboard. That a sync happened, and when, is
+  showable. The payload is not.
+- **Receiving visibility has to be visible.** Quick Share left open with nothing
+  on screen saying so is the difference between receiving a file and being
+  handed one. Of everything F4 could put on the bar, this is the one that earns
+  its place first — it is the only widget here that is a control rather than a
+  readout.
+- **A widget does not invent a security state.** If the status contract does not
+  know whether something is exposed, the widget says it does not know. **A
+  closed padlock drawn by default is worse than a gap**: a gap gives no
+  confidence, and a false padlock gives plenty.
+
+These are prohibitions and defaults, not proposed surfaces, so they get no rows
+in the assumptions table above — and `clipboard` keeps no surface at all. A rule
+about what must never be drawn is not a design that can be built against.
 
 ## The design has to survive leaving Omarchy
 

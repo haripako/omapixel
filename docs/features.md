@@ -272,6 +272,58 @@ seven bespoke forms:
 If those three exist generally, every "what unknown has to look like" cell above
 is satisfied by construction rather than by seven people remembering.
 
+## What each target puts on the wire
+
+**Derived, 15 August 2026.** Facts only — what the channel is, whether it is
+encrypted, who can open it, and where consent happens. Whether any of it is
+*acceptable* is a security question and not one this document answers.
+
+It is here because of a trap specific to this project. The catalogue translates
+Apple features into targets, and a good part of what Apple does is held up by
+cryptographic pairing plus a shared account. **Rebuild the same feature out of
+different parts and the feature matches while the guarantees need not.** Shared
+clipboard and notification mirroring are the clear cases: identical goal, and no
+reason at all to assume an identical trust model.
+
+**Quick Share** — `file-send`, `file-receive`, `share-to-phone`,
+`share-to-self`, `doc-scan`.
+Discovery is mDNS on the local segment and is not authenticated: anything on the
+network can see the service and read the advertised device name. The transfer is
+plain TCP, with a UKEY2 key exchange up front and every frame encrypted after the
+connection response. Either side may open the connection. **Consent is per
+transfer** — the sender sends an Introduction and the receiver answers with an
+explicit ACCEPT. One asymmetry against Apple is structural: AirDrop's
+contacts-only mode rests on an Apple ID, and Quick Share's equivalent rests on a
+Google account a Linux peer cannot join, so a Linux peer is realistically visible
+to everyone and the per-transfer accept is the only gate there is.
+
+**KDE Connect** — `clipboard`, `clipboard-image`, `notifications`, `sms`,
+`remote-input`, `ring-phone`, `phone-battery`, `otp-autofill`, `focus-sync`,
+`media-control`.
+TLS over TCP on the local network, with no third-party server in the path. Each
+device generates its own certificate on first run, and pairing is what
+authenticates them; the protocol separates packets that work unpaired from those
+that require pairing. The point worth recording: **consent is per device and
+happens once.** After pairing, the clipboard and the notification stream flow
+continuously with no further confirmation per item. Apple gates Universal
+Clipboard on a shared Apple ID plus proximity, re-checked; here the gate is a
+single pairing that persists.
+
+`otp-autofill` deserves naming separately, not judging: it exists to lift
+one-time codes out of the notification stream and place them on the desktop
+clipboard, which is a credential-class item crossing a device boundary and
+landing somewhere every application on the session can read.
+
+**scrcpy** — `screen-mirror`.
+Runs over ADB, either on USB or on TCP over the LAN. Authorisation is a prompt on
+the phone, once per host key, and it persists. Enabling ADB over Wi-Fi therefore
+leaves an authorised debugging endpoint reachable on the network for as long as
+it is on — which is a fact about the configuration, not a verdict on it.
+
+**Not covered here** because no data crosses a device boundary: the earbud rows
+(a local Bluetooth link to an accessory), `wifi-qr`, `webcam`, `phone-mic` and
+`phone-audio-in`.
+
 ## Sources
 
 - [Continuity features and requirements for Apple devices — Apple Support](https://support.apple.com/en-us/108046)
@@ -290,6 +342,8 @@ is satisfied by construction rather than by seven people remembering.
 - [Use a device as a webcam — Android Open Source Project](https://source.android.com/docs/core/camera/webcam)
 - [Android 14 adds support for using smartphones as webcams — Esper](https://www.esper.io/blog/android-14-adds-support-for-using-your-smartphone-as-a-webcam)
 - [KDE Connect — KDE Community Wiki](https://community.kde.org/KDEConnect)
+- [Valent — KDE Connect protocol reference](https://valent.andyholmes.ca/documentation/protocol.html)
+- [Google's Nearby Share protocol — grishka/NearDrop PROTOCOL.md](https://github.com/grishka/NearDrop/blob/master/PROTOCOL.md)
 - [The Google Fast Pair Service — Google for Developers](https://developers.google.com/nearby/fast-pair/landing-page)
 - [Google Fast Pair integration — Nordic nRF Connect SDK docs](https://docs.nordicsemi.com/bundle/ncs-3.0.1/page/nrf/external_comp/bt_fast_pair.html)
 - [AirDrop–Quick Share interoperability expanding to more Android phones — MacRumors](https://www.macrumors.com/2026/02/11/airdrop-quick-share-interoperability-more-phones/)

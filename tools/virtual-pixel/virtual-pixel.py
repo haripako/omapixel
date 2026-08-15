@@ -52,6 +52,8 @@ from datetime import datetime
 # advertisement on this machine on 2026-08-15.
 SERVICE_TYPE = "_FC9F5ED42C8A._tcp"
 DEFAULT_NAME = "Virtual Pixel (simulated)"
+BIND_LOCAL = "127.0.0.1"
+BIND_LAN = "0.0.0.0"
 
 ENV = {**os.environ, "LC_ALL": "C", "LANG": "C"}
 
@@ -143,6 +145,15 @@ WHAT THIS DOES VALIDATE
 WHAT IT DOES NOT VALIDATE YET
   real discovery, pairing, and anything that depends on a BLE advertisement or
   on an actual Pixel being on the same subnet
+
+WHAT IT DOES NOT UNBLOCK, AND THIS IS A LIMIT OF THE MACHINE
+  the real rquickshare path here. bluetoothd segfaults when rquickshare STARTS,
+  before any peer exists, so a virtual peer removes one of F1's two blockers --
+  the missing phone -- and leaves the other exactly where it was. Against our
+  own code (omapixel-status, the contract, the widget, the feedback surface)
+  this peer is enough, because none of that needs rquickshare. Against real
+  rquickshare, only a VM, and nobody has measured whether it crashes bluetoothd
+  there too with no adapter passed through.
 
 WHAT IT CAN NEVER VALIDATE
   the F1 discovery-flakiness box: how many attempts until the device appears,
@@ -237,23 +248,33 @@ FAILURE_MODES = {
 }
 
 
-def serve(name: str, port: int, once: bool, mode: str) -> int:
+def serve(name: str, port: int, once: bool, mode: str, lan: bool) -> int:
     assert_no_bluetooth("startup")
 
     listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    # Loopback by default. Binding 0.0.0.0 and advertising over mDNS puts a real
+    # service on the operator's home network, and on the network of anybody who
+    # runs the suite. The agreed scope of this version is exercising our own
+    # code on this machine, so --lan is opt-in and says so out loud.
     try:
-        listener.bind(("0.0.0.0", port))
+        listener.bind((BIND_LAN if lan else BIND_LOCAL, port))
     except OSError as exc:
         say("error", f"cannot listen on port {port}: {exc}")
         return 1
     listener.listen(4)
     actual_port = listener.getsockname()[1]
-    say("listening", f"tcp/{actual_port} on all interfaces")
+    where = "all interfaces (LAN-visible)" if lan else "loopback only"
+    say("listening", f"tcp/{actual_port}, {where}")
 
     advert = Advertisement(name, actual_port)
     if mode == "absent":
         say("mode absent", "not advertising: exercising the no-peer-found path")
+    elif not lan:
+        # Advertising to the LAN while listening only on loopback would publish
+        # an endpoint nobody can reach. The bind and the advertisement are one
+        # decision, not two.
+        say("not advertising", "loopback-only, so mDNS would publish an unreachable endpoint. Use --lan")
     else:
         advert.start()
 
@@ -318,6 +339,11 @@ def main(argv: list[str]) -> int:
         description="A simulated Quick Share peer. Never touches Bluetooth.",
     )
     parser.add_argument("--port", type=int, default=0, help="0 picks a free port")
+    parser.add_argument(
+        "--lan", action="store_true",
+        help="bind all interfaces and advertise over mDNS. Off by default: this "
+             "puts a real service on your network",
+    )
     parser.add_argument("--name", default=DEFAULT_NAME)
     parser.add_argument("--once", action="store_true", help="handle one and exit")
     parser.add_argument(
@@ -349,7 +375,7 @@ def main(argv: list[str]) -> int:
         say("self-check passed", "no Bluetooth sockets, no BlueZ, no BT binaries")
         return 0
 
-    return serve(args.name, args.port, args.once, args.mode)
+    return serve(args.name, args.port, args.once, args.mode, args.lan)
 
 
 if __name__ == "__main__":

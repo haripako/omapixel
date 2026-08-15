@@ -182,13 +182,24 @@ Numbers table and has not been checked. The evidence here is the flags, not the
 version integer. It is also not the BlueZ userspace version, which is 5.87 and
 unrelated.
 
-**There is an open contradiction here, and it is left open on purpose.** A
-derived claim in circulation says this adapter is Bluetooth 5.2, from a
-manufacturer specification sheet. The controller reports `version 12`. Those two
-cannot both be reconciled without the SIG table, and nobody has checked it.
-Recording the tension is more useful than resolving it by assumption in either
-direction — a measured integer does not automatically beat a spec sheet when
-the mapping between them is the unverified part.
+**Contradiction resolved, 2026-08-15.** It was held open for a few hours on
+purpose: a derived claim from a manufacturer spec sheet said this adapter was
+Bluetooth 5.2, the controller reported `version 12`, and reconciling the two
+needed the SIG's mapping — which was the unverified link. A measured integer
+does not automatically beat a spec sheet when the mapping between them is what
+nobody has checked.
+
+Research then fetched the table. In the SIG's Assigned Numbers, the HCI Version
+parameter maps `0x0B` to Core Specification 5.2 and `0x0C` to 5.3. `version 12`
+is `0x0C`, so **the adapter is 5.3 and the spec-sheet claim of 5.2 was wrong**.
+Still **derived** — that table came off the web, not out of this terminal — but
+from the primary source rather than from a guess.
+[Assigned Numbers](https://www.bluetooth.com/wp-content/uploads/Files/Specification/HTML/Assigned_Numbers/out/en/index-en.html)
+
+The flags remain the better evidence regardless. They say what this controller
+will actually do; the version says only which document it claims to follow, and
+an adapter can advertise 5.3 without exposing isochronous channels. The version
+is context now, not the proof.
 
 **What this does not say, and the distance is large.** It says the controller
 exposes the capability. It says nothing about whether BlueZ and PipeWire can
@@ -203,3 +214,33 @@ which accounts for the overwhelming majority of lines. Filter it out:
 ```bash
 journalctl -f -u bluetooth | grep -v 'dizziee.system-stats'
 ```
+
+## The virtual peer does not touch Bluetooth — measured, not asserted
+
+Recorded here rather than left in a message, because this is the gate that lets
+the testing agent drive `tools/virtual-pixel/`, and a fact that lives only in a
+message dies with the session.
+
+Measured 2026-08-15. The emulator's own `--self-check` does **not** count as the
+evidence: a program's opinion of itself is exactly what the doctor rule rejects.
+What supports it is four external observations, taken across a full startup, an
+mDNS advertisement and a completed simulated transfer.
+
+```bash
+systemctl show bluetooth -p MainPID --value                       # before and after
+journalctl -k --since today | grep -c 'bluetoothd.*segfault'      # before and after
+bluetoothctl info <mouse-mac> | grep Connected                    # stays yes
+ls -l /proc/$(pgrep -f virtual-pixel.py)/fd | grep -ci bluetooth  # 0
+```
+
+| Check | Before | After |
+|---|---|---|
+| `bluetoothd` PID | 431109 | 431109, unchanged |
+| Segfaults today | 3 | 3, no increment |
+| Bluetooth mouse | connected | connected |
+| Bluetooth file descriptors held by the process | — | 0 |
+
+The bluetooth journal stayed quiet throughout. `strace -f -e trace=socket` would
+have added the syscall half of this and **could not be run: strace is not
+installed on this machine.** Stated plainly rather than quietly skipped, because
+a missing half of a measurement is itself worth knowing.
