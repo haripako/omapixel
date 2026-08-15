@@ -25,7 +25,7 @@ import tomllib
 import unittest
 from pathlib import Path
 
-from tests.support import SCRIPTS, privacy_violations
+from tests.support import ROOT, SCRIPTS, privacy_violations
 
 SCRIPT = SCRIPTS / "hw-report.sh"
 # Resolved before PATH is replaced: the sandbox has no bash of its own.
@@ -326,6 +326,112 @@ class ScriptsNeverActOnTheSystem(unittest.TestCase):
                         f"{path.name}:{number} appears to run {binary}:"
                         f"\n  {line.strip()}",
                     )
+
+
+class NothingSpeaksBluetoothInProcess(unittest.TestCase):
+    """The half the invocation log cannot see.
+
+    The sandbox records processes, so it catches `bluetoothctl`, `btmgmt` and
+    `hcitool`. It is blind to a program that opens an AF_BLUETOOTH socket or
+    talks to org.bluez over D-Bus without executing anything — which is exactly
+    how a Python emulator would do it. Raised by code review on 2026-08-15.
+
+    This is a static check over every program in the repository, so it holds
+    for code the suite has never run, including anything that lands in
+    tools/virtual-pixel/. It cannot prove a running process stays off the
+    stack: that measurement belongs to backend and is the gate before any test
+    drives the emulator.
+    """
+
+    FORBIDDEN = re.compile(
+        r"AF_BLUETOOTH|BTPROTO_|org\.bluez"
+        r"|import\s+bluetooth\b|from\s+bluetooth\s+import|pybluez|bleak|dbus_next"
+    )
+
+    def programs(self) -> list[Path]:
+        roots = [ROOT / "scripts", ROOT / "tools"]
+        found: list[Path] = []
+        for root in roots:
+            if not root.is_dir():
+                continue
+            found += [p for p in sorted(root.rglob("*"))
+                      if p.is_file() and p.suffix in ("", ".py", ".sh")
+                      and "__pycache__" not in p.parts]
+        return found
+
+    @staticmethod
+    def code_only(text: str) -> dict[int, str]:
+        """Executable code by line, with comments and string literals removed.
+
+        Necessary rather than fastidious. The virtual Pixel contains a
+        self-audit that checks it is holding no AF_BLUETOOTH socket, and it
+        names the thing it is refusing to do — in prose and in a string. A
+        checker that cannot tell "opens a Bluetooth socket" from "verifies it
+        opened none" would punish exactly the code doing the right thing.
+
+        Consequence worth stating: a reference built out of string literals
+        would slip past. Same posture as the privacy detector — this catches
+        accidents, not somebody determined to hide one.
+        """
+        import io
+        import tokenize
+
+        # Python 3.12 splits f-strings into FSTRING_START/MIDDLE/END instead of
+        # one STRING token, so the literal text inside them has to be skipped by
+        # name. Without this, a message *describing* a Bluetooth socket reads
+        # like one being opened.
+        skip = {tokenize.COMMENT, tokenize.STRING} | {
+            getattr(tokenize, name)
+            for name in ("FSTRING_START", "FSTRING_MIDDLE", "FSTRING_END")
+            if hasattr(tokenize, name)
+        }
+
+        lines: dict[int, list[str]] = {}
+        try:
+            for token in tokenize.generate_tokens(io.StringIO(text).readline):
+                if token.type in skip:
+                    continue
+                lines.setdefault(token.start[0], []).append(token.string)
+        except (tokenize.TokenError, IndentationError, SyntaxError):
+            # Not Python, or not valid Python. Fall back to stripping comments.
+            return {
+                number: line
+                for number, line in enumerate(text.splitlines(), start=1)
+                if not line.strip().startswith("#")
+            }
+        return {number: " ".join(parts) for number, parts in lines.items()}
+
+    def test_no_program_opens_bluetooth_itself(self):
+        for path in self.programs():
+            try:
+                text = path.read_text()
+            except UnicodeDecodeError:
+                continue  # a binary; not something this check can reason about
+            for number, line in self.code_only(text).items():
+                with self.subTest(file=path.name, line=number):
+                    self.assertIsNone(
+                        self.FORBIDDEN.search(line),
+                        f"{path.relative_to(ROOT)}:{number} talks to the Bluetooth "
+                        f"stack in-process, which no PATH sandbox can intercept:"
+                        f"\n  {line.strip()}",
+                    )
+
+    def test_the_check_still_catches_a_real_use(self):
+        """Positive control: stripping strings must not strip the invariant."""
+        real = "import socket\ns = socket.socket(socket.AF_BLUETOOTH, socket.SOCK_RAW)\n"
+        hits = [n for n, line in self.code_only(real).items()
+                if self.FORBIDDEN.search(line)]
+        self.assertTrue(hits, "the check no longer detects an AF_BLUETOOTH socket")
+
+    def test_the_check_tolerates_an_audit_that_names_what_it_refuses(self):
+        audit = (
+            'import socket\n'
+            '# 2. The AF_BLUETOOTH constant must not be reachable.\n'
+            'family = getattr(socket, "AF_BLUETOOTH", None)\n'
+        )
+        hits = [n for n, line in self.code_only(audit).items()
+                if self.FORBIDDEN.search(line)]
+        self.assertEqual(hits, [])
 
 
 if __name__ == "__main__":

@@ -383,6 +383,15 @@ glyph a real Pixel gets. And any status line derived from the emulator says so
 in words. The same applies to fixtures and mock data used while iterating on a
 widget: if it can be screenshotted, it can be mistaken for a measurement.
 
+A surface cannot mark what the data does not tell it, so provenance has to
+arrive in the status contract — a `simulated` flag, a `provider` field, whatever
+backend settles on. Which raises the case nobody has ruled on yet, and it is the
+one that decides whether the rule holds: **when the provenance field is absent,
+the surface must not assume real.** Absent is unknown, and unknown is drawn as
+unknown — the same way an untested capability is. Failing the other way means an
+old emulator build, a replayed fixture or a truncated payload renders as a
+measured Pixel, which is the exact image that ends up in an issue.
+
 ### Why that rule is not paranoia
 
 Four instances turned up on this machine in a single day, 15 August 2026. Two

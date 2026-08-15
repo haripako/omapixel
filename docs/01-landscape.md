@@ -29,6 +29,48 @@ mature piece in the stack.
 - Nothing is documented about Wayland. **First thing to verify**: the tray
   indicator and the dialogs under Hyprland.
 
+### What the protocol actually requires
+
+**Derived from the reverse-engineering write-ups on 15 August 2026**, gathered to
+answer one question: can a peer be spoken to over the LAN alone, with no
+Bluetooth? Sources at the foot of this file.
+
+**Yes. BLE is a doorbell, not a transport.** It carries no payload, takes no part
+in the handshake and authenticates nothing. Its only job is to nudge a dormant
+Android device into publishing its mDNS record — pyquickshare states it plainly:
+BLE is used only to trigger advertisement, what it calls *nudging* or *Fast
+Init*. NearDrop on macOS has no BLE at all, because its author could find no
+macOS API for it, and it receives files fine. rquickshare's own README says
+**Wi-Fi LAN only** and documents workarounds for machines with no Bluetooth at
+all: open the Quick Share sheet by hand on the phone, from the Files app or an
+intent shortcut.
+
+The consequence for anything that emulates a peer: two software endpoints on a
+LAN can both publish mDNS continuously, so there is nothing to nudge and nothing
+for BLE to do.
+
+The shape of it, for whoever implements against it:
+
+| Layer | What it is |
+|---|---|
+| Service type | `_FC9F5ED42C8A._tcp.` — from `SHA256("NearbySharing")` |
+| Instance name | 10 bytes, URL-safe base64: `0x23` (PCP), 4-byte endpoint id, `0xFC 0x9F 0x5E`, two zero bytes |
+| TXT record | One key, `n`: URL-safe base64 endpoint info |
+| Endpoint info | Bitfield byte (version, visibility, device type), 2-byte salt, 14-byte encrypted metadata key, length-prefixed UTF-8 device name, optional TLVs |
+| Transport | Plain TCP on the port from the SRV record. Every protobuf message is prefixed with a 4-byte big-endian length |
+| Handshake | ConnectionRequest → UKEY2 ClientInit → ServerInit → ClientFinish → ConnectionResponse. Encrypted from here on |
+| Then | PairedKeyEncryption and PairedKeyResult both ways, Introduction from the sender, Response with ACCEPT, payload chunks |
+
+Two things this does **not** settle, and neither should be assumed:
+
+- Whether the 14-byte encrypted metadata key can be random when visibility is set
+  to everyone, or whether it has to derive from real account state.
+- Whether rquickshare fires its BLE advertisement on startup regardless of
+  whether anything needs nudging. That question is not academic here: the
+  measured `bluetoothd` segfault on this machine happens in rquickshare's
+  *startup* path, so a peer that needs no nudging does not, by itself, stop the
+  crash. See [reference setup](04-reference-setup.md).
+
 Alternatives that do not solve the same problem: LocalSend, Warpinator and
 Syncthing all use their own protocols. They move files perfectly well, but they
 do not speak to the Quick Share that is already on the Pixel, which is exactly
@@ -107,5 +149,8 @@ These belong in the research drawer, not the work queue. See F5 in the
 - [Alternatives to KDE Connect](https://en.androidsis.com/Alternatives-to-KDE-Connect-for-connecting-Android-and-Linux/)
 - [Cross-device services: call casting and internet sharing — 9to5Google](https://9to5google.com/2024/07/28/android-cross-device-services-rolling-out/)
 - [Instant Hotspot, how to use it — Android Authority](https://www.androidauthority.com/android-cross-device-services-how-to-instant-hotspot-3478597/)
+- [Google's Nearby Share protocol — grishka/NearDrop PROTOCOL.md](https://github.com/grishka/NearDrop/blob/master/PROTOCOL.md)
+- [pyquickshare — Quick Share for Linux](https://github.com/teaishealthy/pyquickshare)
+- [packet — Quick Share client for Linux](https://github.com/nozwock/packet)
 - [Google Fast Pair Service — specification](https://developers.google.com/nearby/fast-pair/specifications/introduction)
 - [Google Fast Pair integration — Nordic nRF Connect SDK docs](https://docs.nordicsemi.com/bundle/ncs-3.0.1/page/nrf/external_comp/bt_fast_pair.html)

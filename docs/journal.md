@@ -293,8 +293,61 @@ so the two are not the same measurement.
 **measured** — A real hole in CI's privacy grep: `subnet = "[ip redacted]/24"`
 passed it, because the check only looked for the `/NN` suffix and never checked
 that the host part was zero. That is precisely the address the rule exists to
-keep out of public reports. The replacement detector catches it, and there is a
-test demonstrating that rather than asserting it.
+keep out of public reports.
+
+**measured, and it corrects the entry above** — The replacement detector was
+then attacked rather than trusted, and **it failed open in seven further ways**:
+MAC addresses with dashes — the IEEE's canonical form and the one Windows shows,
+so the leak that would actually have happened — IPv6 both global and link-local,
+an entire class of addresses that went unchecked, `/32` and `/31` accepted for
+ending in `.0`, and a host ending in `.0` inside a wider network. Now the
+`ipaddress` module decides, not the shape of the string. Reproduce with:
+
+```bash
+LC_ALL=C python3 -m unittest tests.test_repo_invariants.PrivacyOfPublishedReports
+```
+
+Worth stating plainly, because the first version of this entry read as solved
+when it was not: **a fix that has not been attacked is a hypothesis.**
+
+**decision** — What the detector deliberately does **not** catch is written in
+its docstring and **pinned by a test**: bare and Cisco-style MACs stay out,
+because twelve hex digits match half the logs in the world, and a false positive
+is a red build that a stranger cannot work out how to fix. If somebody adds that
+detection, the test fails and forces the docstring to be corrected in the same
+commit. The general criterion, which applies well beyond this check: **a privacy
+invariant people trust more than it deserves is worse than a grep nobody
+trusts.**
+
+**decision** — The privacy rule for device reports is never softened to a
+warning, and never "fixed" by normalising `[ip redacted]/24` into
+`192.168.10.0/24`. **The address has already travelled in the contributor's pull
+request**; masking it hides the leak without undoing it. It is rejected loudly
+and the sender is told. Written into the docstring and the test so it survives
+the reader who finds it pedantic.
+
+**measured, against fixtures** — The link checker had a defect of its own: it
+re-read the file from disk instead of using the text it had been handed, so it
+only worked by coincidence against real files. It surfaced while writing
+positive controls. **A validator that is only ever tried against real input is
+right by accident**, which is the same family as the four cases above.
+
+**measured, against stubs** — Suite now at **147 tests**, including 24 covering
+`scripts/omapixel-status`. Supersedes the 126 recorded earlier the same day;
+both figures are true of their moment.
+
+**decision** — Two `omapixel-status` defects found by review — the Pixel phone
+counted as earbuds, and a dead `bluetoothd` reported as "nothing is paired" —
+were fixed the same day and kept as **regression tests rather than expected
+failures**, because the obvious "improvement" in six months is to widen that
+match again.
+
+**measured, and it is the rule biting** — The observable-effect rule was applied
+to `probe_file_transfer`: a live process is not a serving process, so it now
+requires a listening socket. That **broke the test suite**, which had encoded
+the old contract, and the break was repaired in minutes. The breakage is the
+evidence that the rule has teeth: a rule that changes no existing behaviour was
+not worth writing down.
 
 **decision** — The negative cases for the `[network]` schema were written in the
 suite **before** the validation exists in `build-matrix.py`, marked
@@ -373,16 +426,39 @@ Rule 2 is the one that will erode, because the emulator will be the easiest
 thing in the project to run and the only one always available. **Everything
 exercised against it is written "measured against the emulator", in full.**
 
+**decision, reached independently by two people** — Rule 2 has to be structural,
+not editorial: **the simulated mark lives in the data, not in the styling.** If
+the JSON does not say a peer is simulated, no consumer *can* tell — the widget,
+the test, the person reading a log, none of them. The argument that settles it
+is the screenshot: **a picture of a transfer working, pasted into an issue,
+becomes evidence of something nobody measured, and it travels further than any
+document we write.** Requested of the status contract, and written into the
+design rules as *Simulated data must look simulated*.
+
+**open, and the gate has a blind half** — The "no Bluetooth" gate is supposed to
+be a measurement that starting the emulator brings up nothing Bluetooth. But the
+test harness records **binary invocations**, and that misses an in-process
+socket entirely: `AF_BLUETOOTH`, or D-Bus to BlueZ, without executing anything.
+The gate has to cover both halves or it certifies only the half it can see.
+
 **open** — Does Quick Share discovery work over pure LAN, with no BLE
 advertisement at all? The whole emulator rests on the answer being yes, and that
 is currently a hypothesis, held by somebody who said plainly it should not be
 believed on their say-so.
+
+**correction, same day** — It was said that the virtual peer lifts the ceiling
+on what a clean VM can validate. It lifts it **halfway**: the LAN path,
+feedback, and whether an error can be understood — not real discovery, and
+nothing that depends on BLE or on a Pixel sharing the subnet.
 
 **decision** — The interface between the layer that measures the device and the
 layer that draws it is agreed **in writing, before it is written**, and whoever
 changes it says so beforehand rather than afterwards. **A widget that invents a
 number is worse than an empty widget.** Same principle as the rule above: the
 drawing layer never fabricates, and never simulates hardware it cannot reach.
+That interface already exists — the [status contract](08-status-contract.md)
+and `scripts/omapixel-status`, commit `652d128` — so nothing new had to be
+agreed, only kept.
 
 **decision, proposed** — The same criterion applies to `doctor`, and more
 sharply. [Packaging](05-packaging.md) already says `doctor` is the

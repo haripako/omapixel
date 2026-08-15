@@ -215,6 +215,37 @@ useful for things somebody intends to test and noise for things that are
 aspirational. Promote a row when it enters a phase, not when it enters this
 document.
 
+## What a T2 target would have to expose
+
+The tiers above say what kind of work each target is. This says what each **T2**
+target would have to put on the wire, so that the layer producing the data and
+the layer drawing it can be agreed on before either is written rather than after.
+
+It is not a contract — the contract is `08-status-contract.md`, and it is not
+mine. This is the list of what would have to be contracted, derived from what
+each tool can actually produce.
+
+The last column is the one that matters. Every row here can fail in a way that
+looks like a number, and a widget that draws an invented number is worse than a
+widget that draws nothing. The precedent already exists in the status contract:
+`buds-battery` carries a `source` field (`avrcp` / `proprietary` / `null`)
+precisely so that "one figure because only one exists" cannot be mistaken for
+"three were due and two failed".
+
+| Target | Produced by | Would have to expose | Desktop consumes | What "unknown" has to look like |
+|---|---|---|---|---|
+| `phone-battery` | KDE Connect battery plugin, over D-Bus | Level, charging state, and the age of the reading | A figure on the bar | Phone unreachable is **not** 0 %. Needs an explicit unavailable state with a reason, and a timestamp so a stale figure cannot pass as current |
+| `buds-multipoint` | `pbpctrl`, plus the local BlueZ connection state | Which host currently holds the buds, and whether a grab succeeded | A toggle, and the current owner on the bar | "Not connected" and "connected but owned by the phone" are different states and must not collapse into one icon |
+| `otp-autofill` | KDE Connect notification stream | The extracted code, the sender, and the confidence that it *is* a code | A notification, and the code on the clipboard | A wrong extraction is worse than none. If the pattern does not match cleanly, expose nothing rather than a guess |
+| `focus-sync` | Both ends: Omarchy quiet mode and the phone's DND | Current state each side, and which side changed last | A toggle | The two can disagree. There is no single truth to show, so expose both and say which won |
+| `buds-announce` | KDE Connect notifications plus local TTS | Nothing visible; it is an action | A toggle, and a queue depth | Announcing into buds that are not in an ear is the failure. Needs in-ear state, which is `buds-inear` — a T3 that is not solved |
+| `wifi-qr` | Local: a QR decoder and NetworkManager | The parsed SSID and security type before joining | A dialog | A QR that parses but whose network does not exist should say so, not spin |
+| `share-to-phone` | rquickshare | Transfer state, progress, and a terminal result with a reason | Progress, and success or failure | "No peer" is not "failed". The status contract already separates these — keep them separate all the way up |
+
+Three T2 targets need no contract because they produce no state the desktop shows
+— `second-display`, `phone-mic` and `phone-audio-in` are audio and display
+routing, and their state already lives in PipeWire and Hyprland.
+
 ## Sources
 
 - [Continuity features and requirements for Apple devices — Apple Support](https://support.apple.com/en-us/108046)

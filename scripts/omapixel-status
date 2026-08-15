@@ -171,6 +171,19 @@ def probe_file_transfer() -> dict:
             {"running": True, "peers": unavailable("socket state unknown")},
         )
     if "rquickshare" not in sockets:
+        # "ss showed no process names at all" and "ss showed names and none is
+        # ours" are different facts. ss -p only attributes sockets it can — a
+        # flatpak, another user or a namespace hides the name — so collapsing
+        # them would report "not listening" for a peer that is listening fine.
+        # Same mistake QA caught in the earbuds path, wearing a different skin.
+        if "users:((" not in sockets:
+            return capability(
+                NO_ANSWER,
+                "rquickshare is running but no socket could be attributed to "
+                "any process, so whether it is listening is unknown",
+                provider,
+                {"running": True, "peers": unavailable("socket ownership unknown")},
+            )
         return capability(
             NO_ANSWER,
             "rquickshare is running but is not listening for transfers",
