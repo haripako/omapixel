@@ -1,5 +1,6 @@
 session.json
 *.log
+__pycache__/
 
 # Maintainer's local agent handoff notes. Deliberately not published: they
 # describe this specific machine and workspace, not the project.

@@ -1,9 +1,12 @@
 # Feature targets: what Apple does, and what the equivalent would be here
 
-**Derived from web research on 15 August 2026.** Nothing in this file has been
-measured. It is a target list, not a status report — the status lives in the
-[capability matrix](02-capability-matrix.md) and the [roadmap](03-roadmap.md).
-See [conventions](conventions.md).
+**Derived from web research on 15 August 2026.** It is a target list, not a
+status report — the status lives in the [capability
+matrix](02-capability-matrix.md) and the [roadmap](03-roadmap.md).
+
+Measured claims are tagged **measured** inline, with their date and the command
+that produced them. Everything else here is derived. See
+[conventions](conventions.md).
 
 ## Why Apple is the yardstick
 
@@ -116,6 +119,33 @@ riskiest. `pbpctrl` targets the first-generation Pixel Buds Pro and had not been
 updated in 482 days as of the landscape query; the Buds Pro 2 use a different
 SoC. Every row below is conditional on something responding at all.
 
+As of the night of 15 August 2026 it is conditional on something further down,
+too. **Measured by another contributor on the reference machine:** `bluetoothd`
+segfaults when rquickshare's BLE listener starts, reproduced 3 times out of 3.
+The crash is logged by the kernel, not by `journalctl -u bluetooth`, which is why
+this machine's long history of Bluetooth drops never left a trace anywhere anyone
+was looking. The write-up is in
+[`04-reference-setup.md`](04-reference-setup.md).
+
+Whether it reaches this section is a three-link chain, and only the first link is
+measured. Labelled, because the temptation to collapse it is the whole reason
+this repository has a conventions file:
+
+- **Measured** — launching rquickshare crashes `bluetoothd`, 3 out of 3, on this
+  adapter with BlueZ 5.87.
+- **Derived** — `pbpctrl` reaches the earbuds over BLE. That comes from its
+  README. It is not installed here and nothing has been run against it.
+- **Hypothesis, untested** — that the fault lives in the BLE path rather than in
+  something Quick Share does. If it holds, the crash sits *underneath* this whole
+  section instead of beside it. One isolation test settles it, and it needs
+  hardware that has not arrived.
+
+The precaution is worth taking before the hypothesis is settled rather than
+after: **do not read a failure in any row below as evidence about the earbuds
+until that isolation test has been run.** The cost of the precaution is nothing;
+the cost of skipping it is blaming the Buds for an adapter fault on the first
+measurement of F3, and believing it.
+
 | Apple | What it actually does | Path on Linux today | Target here | Tier | id | Phase |
 |---|---|---|---|---|---|---|
 | AirPods battery in Control Centre | Three separate figures: left, right, case | Standard AVRCP gives **one combined number** and nothing for the case. Three readings need the proprietary protocol, which is what `pbpctrl` implements. The case has no radio and only reports whether a bud is inside | Three figures on the bar, or an honest one figure if that is all that comes back | T1 | **buds-battery** | F3 |
@@ -124,7 +154,7 @@ SoC. Every row below is conditional on something responding at all.
 | Proximity pairing | Open the case near the Mac and a card appears offering to pair | Fast Pair. Note the role naming: the **earbuds** are the Fast Pair *Provider*, the phone is the *Seeker* — so Linux would have to implement the **Seeker** side, and the account-linked half of that leans on Play Services | Research only | T3 | **fast-pair** | F5 |
 | Automatic device switching | The AirPods follow whichever device starts playing | Pixel Buds Pro 2 have Bluetooth multipoint, so *the buds* can hold both links. Linux has no automatic handover logic at all | Grab and release the buds from a keybinding or the bar. Not automatic, but one gesture instead of two menus. **Realistically the highest daily value in F4** | T2 | `buds-multipoint` | F4 |
 | In-ear detection | Take a bud out, the audio pauses; put it back, it resumes | The buds detect it; whether the event is exposed over the proprietary protocol is unknown, and `pbpctrl` is not documented as surfacing it | Find out if the event is readable. If it is, pause MPRIS on it | T3 | `buds-inear` | F3 |
-| Audio Sharing | Two sets of AirPods on one device's audio | The open equivalent is **Auracast** over LE Audio, which the Buds Pro 2 support. BlueZ 5.85 has full BAP support and PipeWire 2.0 added Auracast broadcasting; controls for browsing broadcasts and switching between LE Audio and classic Bluetooth were still listed as work in progress, with SIG qualification aimed at 2026. Needs a Bluetooth 5.2+ adapter on both ends | Genuinely new ground. The reference machine's MT7922 is 5.2, so the hardware is not the blocker — the stack and the adapter's disconnection history are | T2 / T3 | `buds-auracast` | F5 |
+| Audio Sharing | Two sets of AirPods on one device's audio | The open equivalent is **Auracast** over LE Audio. BlueZ 5.85 has full BAP support and PipeWire 2.0 added Auracast broadcasting; controls for browsing broadcasts and switching between LE Audio and classic Bluetooth were still listed as work in progress, with SIG qualification aimed at 2026. Both ends need a controller that does isochronous channels | Genuinely new ground, and the controller on this end is not the obstacle. **Measured on the reference machine, 15 Aug 2026, `btmgmt info`:** `hci0` lists `iso-broadcaster`, `sync-receiver`, `cis-central` and `cis-peripheral` as supported *and* currently enabled — the isochronous prerequisites for LE Audio and Auracast are live at the controller. (It also reports `version 12`; turning that into a Core Spec number needs the SIG's Assigned Numbers table and has not been checked, so the flags are the evidence here, not the number.) The canonical home for this measurement is [`04-reference-setup.md`](04-reference-setup.md) and it has **not been carried over there yet**. Three things above the controller stay unmeasured, and the load-bearing one is now the far end: **that the Buds Pro 2 do Auracast at all is derived from product copy, about hardware that has not arrived**. Then BlueZ and PipeWire actually completing a broadcast, and the buds pairing over LE Audio. See the crash note under [Earbuds](#e-earbuds) before assuming the stack is healthy | T2 / T3 | `buds-auracast` | F5 |
 | Announce Notifications | Siri reads incoming notifications into the buds and you reply hands-free | Nothing. But notifications already arrive via KDE Connect and Linux has decent local TTS | Read selected notifications into the buds. Reply is out of reach; announcement is not | T2 | `buds-announce` | F4 |
 | Find My AirPods | Ring the buds, and precision-find them | Unknown whether the ring command is in the proprietary protocol `pbpctrl` speaks | Check. If it exists it is a one-line wrapper | T3 | `buds-find` | F3 |
 | Gesture customisation | Remap taps, press-and-hold, swipes | Set in the Google app on the phone. Whether the settings are writable over the same channel as ANC and EQ is unknown | Check while inventorying what `pbpctrl` returns | T3 | `buds-gestures` | F3 |

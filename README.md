@@ -36,6 +36,7 @@ repeated. See [conventions](docs/conventions.md).
 | [docs/features.md](docs/features.md) | Every Apple Continuity and AirPods feature, translated into a target here, tiered by what kind of work it is. Entirely derived |
 | [docs/06-design.md](docs/06-design.md) | Design rules: the Omarchy token system measured, the Material pieces worth importing, and who wins where they conflict |
 | [docs/07-plan.md](docs/07-plan.md) | The plan of record: what gets built, in which blocks, in what order, and the six things a user should end up able to say |
+| [docs/journal.md](docs/journal.md) | What was established, on what day, and by what kind of evidence. Read it to find out whether a claim has aged |
 
 ## Scripts
 
@@ -45,8 +46,16 @@ stops; running them is your decision.
 ```bash
 scripts/hw-report.sh              # check this machine
 scripts/hw-report.sh --markdown   # block to paste into a hardware report issue
+scripts/omapixel-status --json    # what works right now, machine-readable
 scripts/build-matrix.py           # regenerate the capability matrix from data/
+scripts/run-tests.sh              # the suite; standard library only
 ```
+
+`omapixel-status` is the interface everything else reads, so that swapping a
+tool underneath costs one file — see the [status
+contract](docs/08-status-contract.md). It never talks to Bluetooth unless asked
+with `--probe-bluetooth`, and it emits valid JSON even when nothing at all is
+installed.
 
 ## Contributing
 

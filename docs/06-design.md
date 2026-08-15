@@ -317,12 +317,70 @@ the layout absorbs without reflowing.** Generalise that into the standing rules:
 - No indeterminate spinner without a timeout and a resulting message. Every
   failure found during bring-up was silent; silence is this project's
   characteristic failure and the UI must not add to it.
+- **Never draw a subsystem's self-reported status. Draw the observable
+  effect.** A widget saying "connected" because BlueZ says `Connected: yes` is
+  a plausible-looking zero wearing a different hat. Ask what the user would
+  check to know it worked — an input node, a file, a pixel — and show that.
 - When design needs a datum that has not been measured, mark it as an
   assumption and say so out loud. Do not promote anything to
   `data/capabilities.toml` — that is development's, and only when a capability
   enters a phase.
 
 ---
+
+## Surfaces and the capabilities they assume
+
+Machine-checked. Every id below is a join key into `data/capabilities.toml`; the
+matrix cells themselves come from device reports in `data/devices/`.
+
+**Reliance** is a claim this document makes and the test enforces:
+
+- `enhancement` — the surface must be fully usable without this capability. The
+  fallback column says what it looks like when the capability is absent, its
+  tool is missing, or nothing has measured it yet. **This is the only legal
+  value while a capability is unmeasured.**
+- `required` — the surface has no meaning without it. Only legal once the matrix
+  shows the capability measured `works` or `partial` on real hardware.
+
+Today every row is `enhancement`, because today nothing is measured. A row that
+turns `required` before its capability does is the failure mode this table
+exists to catch.
+
+<!-- design-assumptions: one capability id per row; ids must exist in data/capabilities.toml -->
+
+| Surface | Capability id | Reliance | When absent or unmeasured |
+|---|---|---|---|
+| Earbud battery readout | `buds-battery` | enhancement | Widget conceals itself. Never a zero, never a grey placeholder |
+| Per-earbud and case split | `buds-battery` | enhancement | One combined figure in the same layout. No reflow when the split appears |
+| ANC control | `buds-anc` | enhancement | Control is not drawn at all. Not drawn disabled |
+| Equaliser control | `buds-eq` | enhancement | Not drawn |
+| Send-to-phone action | `file-send` | enhancement | Action absent from menu and keybinding. No dead entry |
+| Incoming transfer surface | `file-receive` | enhancement | No surface. A transfer that cannot be observed is not announced |
+| Phone notification surface | `notifications` | enhancement | Not drawn |
+| The bar widget itself | `bar-widget` | enhancement | Nothing on the bar; the CLI stays the interface |
+| Keybindings | `hotkeys` | enhancement | Unbound. A bound key that does nothing is worse than no binding |
+| Omarchy menu entry | `menu-entry` | enhancement | No entry |
+
+Surfaces for `clipboard`, `sms`, `screen-mirror`, `remote-input` and everything
+in F5 are deliberately absent: no design has been proposed for them, and absent
+means untested here too.
+
+### Why that rule is not paranoia
+
+Four instances turned up on this machine in a single day, 15 August 2026. Two
+were measured here in the course of this document; the other two came out of the
+Bluetooth work the same night.
+
+| The tool said | What was actually true |
+|---|---|
+| `Local plugin changed, reloading` | Nothing reloaded. The old component kept rendering |
+| `coredumpctl`: core `inaccessible` | Three cores on disk, `root:root 0640`. Unreadable by this user, not missing |
+| `bluetoothctl`: `le-connection-abort-by-local` | The HID was already attached |
+| BlueZ: `Connected: yes` | No input node existed |
+
+Four in a day is not anecdote. **What a tool reports is not evidence of what it
+did.** Every one of these would have produced a confident, wrong widget if a
+surface had rendered the status string it was handed.
 
 ## The design has to survive leaving Omarchy
 
@@ -337,6 +395,12 @@ anyway, and that is fine — but it means:
 - **The token mapping lives in this file**, not only in component code, so a GTK
   or generic-tray implementation resolves the same decisions against a different
   system.
+- **The tray is not a delivery surface here.** Measured in F1: `rquickshare`
+  registers a StatusNotifierItem correctly and Quickshell picks it up, but
+  Omarchy's tray module keeps unpinned items in a collapsed drawer behind a
+  chevron — the icon is live and invisible. Anything that has to be seen is a
+  bar widget. The tray is a fallback for desktops that have nothing better,
+  never the surface here. See [roadmap F1](03-roadmap.md).
 - Where Omarchy gives us a token and a foreign desktop does not, this file names
   the fallback. Current fallbacks, judgement: radius 8, spacing base 4, one
   accent from the desktop's own accent setting where one exists, monospace UI
@@ -363,17 +427,44 @@ anyway, and that is fine — but it means:
   horizontal breaks silently for anyone who moved their bar.
 - **Test with the icon font absent**, per the icon rules.
 
-### Iteration cost — unresolved contradiction
+### Iteration cost — measured
 
-`CLAUDE.md` states QML has no hot-reload and that every change requires
-restarting the shell. Omarchy 4.0.0's own documentation states that saving any
-file under `~/.config/omarchy/plugins/` reloads plugin code automatically, with
-`omarchy-shell shell rescanPlugins` as a manual fallback.
+Measured 15 August 2026, omarchy `4.0.0-1`. Omarchy's documentation states that
+saving any file under `~/.config/omarchy/plugins/` reloads plugin code
+automatically. **On this build it does not.**
 
-Both cannot be true and **neither has been measured here**. The difference is
-large enough to change how design iterates, so it needs one measurement before
-anybody plans around it. Until then, assume the expensive case: batch visual
-changes rather than tweaking a value at a time.
+Method: a throwaway bar widget rendering the literal `PROBE-A`, enabled on the
+bar, then its QML edited to `PROBE-B` with the shell left running. Evidence is
+`grim` captures of the bar plus the shell's journal — not impressions.
+
+| Step | Result |
+|---|---|
+| Add the plugin to `shell.json` | Widget appears live. No restart |
+| Edit the QML and save | Shell logs `Local plugin changed, reloading: local.hotreload-probe`. Bar still renders `PROBE-A` |
+| Wait 23 s | Still `PROBE-A`, on both monitors |
+| `omarchy-shell shell rescanPlugins` | Still `PROBE-A` |
+| Disable, then re-enable the widget | Still `PROBE-A` |
+| `omarchy restart shell` (confirmed new PID) | `PROBE-B` |
+| Remove the plugin from `shell.json` | Widget disappears live. No restart |
+
+**Layout hot-reloads. Code does not.** The last two rows are the falsification
+test and the control: the probe was capable of rendering `PROBE-B` all along,
+and `shell.json` really is live.
+
+`~/.cache/quickshell/qmlcache` is written at the moment of the logged reload,
+which is consistent with the engine reusing a compiled component. That
+explanation is **not reproduced** and is not needed for the conclusion.
+
+Three consequences, and the third is a design rule rather than a workflow note:
+
+- **Every QML change costs a shell restart.** Batch visual work; do not tune one
+  value at a time.
+- **The log lies about it.** The shell says `reloading` and nothing reloads.
+  Verify against pixels, never against the journal.
+- **Anything a user might tune belongs in the manifest `schema`, not in a QML
+  constant.** Settings in `shell.json` apply live; code does not. A widget whose
+  knobs are hardcoded is a widget nobody can adjust without restarting their
+  desktop.
 
 ---
 
@@ -397,6 +488,7 @@ A surface is not done until every line is true.
 9. It has been seen on a dark theme, a light theme and a hostile theme, on the
    ultrawide, with a transparent bar, and with the icon font uninstalled.
 10. It degrades to something describable outside Omarchy.
+11. Every user-tunable value is in the manifest `schema`, not a QML constant.
 
 ---
 
@@ -404,7 +496,6 @@ A surface is not done until every line is true.
 
 Nobody should design around these until they have an answer.
 
-- Does user plugin QML actually hot-reload on save? (see above)
 - Does Material Symbols render correctly through `OpticalGlyph`, given
   `Text.NativeRendering` and a four-axis variable font behind a fontconfig
   lookup? Does the optical axis survive at 13 px?

@@ -1,0 +1,203 @@
+# The status contract
+
+The stable interface between the tools underneath and everything we draw. Block
+B2 in the [plan](07-plan.md), and the hinge the rest of it turns on.
+
+```bash
+scripts/omapixel-status          # human-readable
+scripts/omapixel-status --json   # the contract
+```
+
+Nothing we build ever reads `pbpctrl`, `rquickshare` or `kdeconnect-cli` output
+directly. It reads this.
+
+## Why this exists at all
+
+Three problems that look separate and are not.
+
+**Upstream is mortal.** `pbpctrl` had gone 482 days without an update when this
+project started, and it targets first-generation Buds Pro. When it dies, or when
+it turns out not to speak to Buds Pro 2, replacing it must cost one file and not
+a rewrite of everything that displays a battery.
+
+**Design cannot wait for measurement.** Design cannot build against output that
+may never exist. It can build against a contract today, which is why the shape
+below is defined before the data behind it is real.
+
+**Degradation has to be designed, not discovered.** Over standard AVRCP there is
+one combined battery figure and nothing for the case. Three figures need the
+proprietary protocol. If the contract cannot *say* "one figure, combined", every
+consumer invents its own way of showing a hole, and they all disagree.
+
+## The rules the contract guarantees
+
+These are promises to consumers, and the reason they can be written simply.
+
+0. **Why something is missing is structural, not prose.** "No battery showing"
+   has three completely different fixes — install a package, start a daemon,
+   pair a device — and a consumer must not parse English to tell them apart.
+   `status` is for code, `reason` is for humans. Both are always present.
+1. **Every capability key is always present.** Never omitted, whatever the state
+   of the machine. A consumer never writes `if "buds" in data`.
+2. **Valid JSON even when nothing works.** A machine with no tools installed, no
+   devices paired and no network still gets a complete, parseable answer saying
+   so. **This is the case that matters, and the one nobody tests.**
+3. **The body is always parseable; the exit code says whether the command
+   itself broke.** `0` means it ran, including when every capability is
+   unavailable — that is a successful answer, not a failure. Non-zero means the
+   command broke, and even then the body is valid JSON carrying an `error` key,
+   so a consumer parses first and checks status second. `2` means bad
+   arguments; an unknown flag is refused rather than ignored.
+
+   ```json
+   {"schema": 1, "generated": "...", "host": {}, "capabilities": {},
+    "error": "OSError: ..."}
+   ```
+4. **`available: false` always comes with a human `reason`.** Never a bare
+   false. Every silent failure found during bring-up became a support question;
+   the reason string is where that stops.
+5. **`provider` names who answered.** So swapping `pbpctrl` for `budslink` is
+   visible in the data, and a report can say which tool produced a number.
+6. **No host-identifying data.** Subnets, never host addresses. No MAC
+   addresses. Same rule as device reports, for the same reason: this output ends
+   up pasted into issues.
+
+## Shape
+
+```json
+{
+  "schema": 1,
+  "generated": "2026-08-15T21:30:00Z",
+  "host": {
+    "distro": "Omarchy 4.0.0.alpha",
+    "desktop": "Hyprland 0.56.2",
+    "subnet": "192.168.10.0/24"
+  },
+  "capabilities": {
+    "file-transfer": {
+      "available": false,
+      "status": "no_answer",
+      "reason": "rquickshare is installed but not running",
+      "provider": "r-quick-share 0.11.5-5",
+      "state": {
+        "running": false,
+        "peers": {"kind": "unavailable", "reason": "rquickshare is not running"}
+      }
+    },
+    "phone-link": {
+      "available": false,
+      "status": "nothing_present",
+      "reason": "no device is paired with KDE Connect",
+      "provider": "kdeconnect 26.04.3-1",
+      "state": {"devices": []}
+    },
+    "buds": {
+      "available": false,
+      "status": "not_installed",
+      "reason": "pbpctrl is not installed",
+      "provider": null,
+      "state": {
+        "battery": {"kind": "unavailable", "reason": "pbpctrl is not installed", "source": null},
+        "anc": {"kind": "unavailable", "reason": "pbpctrl is not installed"}
+      }
+    }
+  }
+}
+```
+
+That example is not invented: it is the literal state of the reference machine
+on 2026-08-15, and the three capabilities land on three *different* statuses,
+which is the point.
+
+### `status`
+
+| Value | Means | The user's fix |
+|---|---|---|
+| `ready` | Working. `available` is true | — |
+| `not_installed` | The tool is not on this machine | Install a package |
+| `no_answer` | Installed, but it did not respond | Start a daemon |
+| `nothing_present` | It answered, and there is no device | Pair something |
+| `not_probed` | Deliberately not asked. `reason` says why | Depends |
+
+`available` is exactly `status == "ready"` and exists only so simple consumers
+can ignore the rest.
+
+`not_probed` earns its place from a measured hazard: on the reference machine a
+tool bringing up a BLE listener segfaults `bluetoothd` and takes the user's
+Bluetooth mouse with it. **A status command must never be the thing that crashes
+somebody's desktop**, so it does not talk to the earbuds unless asked with
+`--probe-bluetooth`, and it says so rather than pretending nothing is there.
+
+### Battery, the part that carries the whole argument
+
+`battery.kind` is the discriminator, and **`combined` is a first-class answer,
+not a degraded one**:
+
+| `kind` | Fields | When |
+|---|---|---|
+| `per_bud` | `left`, `right`, `case` (any may be `null`) | The proprietary protocol answered |
+| `combined` | `combined` | Standard AVRCP. One figure for both buds, nothing for the case |
+| `unavailable` | `reason` | Nothing paired, or no tool can talk to it |
+
+Every one of them also carries **`source`**: `avrcp`, `proprietary`, or `null`.
+
+That field is not decoration. Without it, "there is only one figure because
+AVRCP only gives one" and "there were meant to be three and two failed" look
+identical from outside, so a consumer shown a single number cannot tell whether
+to draw one battery confidently or three with two holes. `source: "avrcp"` means
+one figure is the *correct and complete* answer; `source: "proprietary"` with a
+missing `right` means something went wrong. Same for a `case` of `null`, which
+means unknown rather than empty — the case has no radio and only reports whether
+an earbud is inside.
+
+A consumer switches on `kind`. It never infers "no data" from a missing field,
+and it never has to render three empty slots because only one number exists.
+
+The case reports only whether an earbud is inside it, because it has no radio of
+its own. `case: null` therefore means "unknown", not "empty".
+
+### ANC
+
+| `kind` | Fields |
+|---|---|
+| `known` | `mode` — one of `off`, `anc`, `transparency` |
+| `unavailable` | `reason` |
+
+### `peers`, and the port that is not there
+
+`peers` is never a bare `[]`. An empty list reads as "we looked and nobody is
+around", and next to `status: ready` that is exactly the wrong thing for a UI to
+believe. Until peer discovery exists it carries the same `unavailable` shape as
+everything else, with a reason. Same argument as the battery: empty and unknown
+must not look alike.
+
+**The transfer port is deliberately absent**, and will stay absent.
+`rquickshare` picks a different TCP port on every launch — measured as 35475,
+then 34261 after a restart. It is not a stable fact about the machine, a
+consumer must never cache it, and a firewall rule cannot be written against it.
+That last consequence is a B0 problem, not something the contract can paper
+over.
+
+### `provider`
+
+A string naming what answered, or `null`. It usually carries a version, but
+**it may be a bare tool name**: the version comes from the host's package
+manager, and a report from a distro without `pacman` will have the name only.
+Consumers must not parse it for a version.
+
+## Adding a capability
+
+A new key here is a promise to keep it forever, so it enters when it enters a
+block in the plan — the same rule that governs
+[`data/capabilities.toml`](../data/capabilities.toml). A capability appearing in
+[features](features.md) does not qualify.
+
+Never rename a key or a `kind` value. Consumers switch on them.
+
+## Status
+
+**The contract is defined. The implementation reports honestly and measures
+almost nothing yet**, which is the accurate state of the project: as of
+2026-08-15 no capability has been measured working. As B1 produces real
+measurements, the providers get filled in behind this shape without any
+consumer changing.

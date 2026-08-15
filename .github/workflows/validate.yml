@@ -32,6 +32,16 @@ jobs:
       - name: Validate device reports and check the matrix is current
         run: scripts/build-matrix.py --check
 
+      # The suite. Standard library only: nothing to install, no network, and
+      # nothing that starts a binary which talks to hardware. Two of its tests
+      # assert what was NOT executed, by replacing PATH with recording stubs —
+      # that is what keeps a status command from ever being the thing that
+      # crashes somebody's Bluetooth.
+      - name: Tests
+        run: python3 -m unittest discover -t . -s tests -v
+        env:
+          LC_ALL: C
+
   shell:
     name: Shell scripts
     runs-on: ubuntu-latest
@@ -60,20 +70,12 @@ jobs:
           fi
           echo "ok: no script runs a package manager"
 
-      # A device report is written by a stranger and rendered into a published
-      # document. Refuse the two things that must never end up in one: a real
-      # MAC address, and a host IP where only a subnet belongs.
-      - name: No MAC addresses or host IPs in device reports
-        run: |
-          status=0
-          if grep -rniE '\b([0-9a-f]{2}:){5}[0-9a-f]{2}\b' data/devices/; then
-            echo "A device report contains a MAC address. Remove it." >&2
-            status=1
-          fi
-          if grep -rnE '\b([0-9]{1,3}\.){3}[0-9]{1,3}\b' data/devices/ \
-             | grep -vE '\.0/[0-9]{1,2}\b'; then
-            echo "A device report contains a host IP. Use the subnet instead." >&2
-            status=1
-          fi
-          if [ "$status" -eq 0 ]; then echo "ok: no MAC addresses or host IPs"; fi
-          exit "$status"
+      # The MAC-address and host-IP invariant used to live here as a grep. It
+      # now lives in tests/test_repo_invariants.py, which is strictly better:
+      # it has positive controls proving the detector catches a report that
+      # does leak, including subnet = "[ip redacted]/24" — a host address that
+      # the old grep accepted because it only looked at the /NN suffix.
+      #
+      # Deliberately not kept in both places. One invariant implemented twice
+      # with different criteria is worse than one implemented once, because the
+      # weaker copy quietly defines the real standard.

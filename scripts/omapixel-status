@@ -1,0 +1,346 @@
+#!/usr/bin/env python3
+"""The stable interface between the tools underneath and anything we draw.
+
+  scripts/omapixel-status          human-readable
+  scripts/omapixel-status --json   the contract, see docs/08-status-contract.md
+
+Consumers read this. They never read pbpctrl, rquickshare or kdeconnect-cli
+output directly, so that replacing one of those costs one file here and nothing
+anywhere else.
+
+Two promises this file exists to keep:
+
+  * It always emits valid JSON, including on a machine where nothing is
+    installed, nothing is paired and nothing is running. That case is the one
+    that matters and the one nobody tests.
+  * Nothing is ever unavailable without saying why, in two forms: `status` for
+    code and `reason` for humans. "No battery showing" has three different
+    fixes -- install a package, start a daemon, pair a device -- and a consumer
+    must not have to parse English to tell them apart. Every failure found
+    during bring-up was silent; these two fields are where that stops.
+
+Standard library only, deliberately: a contributor must be able to run this on a
+bare Python. See docs/05-packaging.md.
+"""
+
+from __future__ import annotations
+
+import ipaddress
+import json
+import os
+import shutil
+import subprocess
+import sys
+from datetime import datetime, timezone
+
+SCHEMA = 1
+
+# Every command that parses output runs under this. A percentile calculation
+# has already been silently wrong once on this project because sort -n met a
+# comma-decimal locale, and ping prints "tiempo=" instead of "time=" in Spanish.
+# See docs/05-packaging.md.
+ENV = {**os.environ, "LC_ALL": "C", "LANG": "C"}
+
+
+def run(cmd: list[str], timeout: int = 5) -> tuple[int, str]:
+    """Run a command. Never raises: a failure is data, not an exception."""
+    try:
+        p = subprocess.run(
+            cmd, capture_output=True, text=True, timeout=timeout, env=ENV, check=False
+        )
+        return p.returncode, p.stdout.strip()
+    except (OSError, subprocess.SubprocessError):
+        return 127, ""
+
+
+# Why a capability is not available, structurally. "No battery showing" has
+# three completely different fixes — install a package, start a daemon, pair a
+# device — and a consumer must not have to parse English prose to tell them
+# apart. The reason string is for humans; this field is for code.
+NOT_INSTALLED = "not_installed"    # the tool is not on this machine
+NO_ANSWER = "no_answer"            # installed, but it did not respond
+NOTHING_PRESENT = "nothing_present"  # it answered, and there is no device
+NOT_PROBED = "not_probed"          # deliberately not asked, see reason
+READY = "ready"
+
+
+def unavailable(reason: str) -> dict:
+    """The shape for "there is no value here, and this is why".
+
+    Used for anything a consumer might otherwise render as an empty slot.
+    Battery adds `source` on top; ANC does not, because there is no equivalent
+    "which protocol answered" distinction to make.
+    """
+    return {"kind": "unavailable", "reason": reason}
+
+
+def battery_unavailable(reason: str) -> dict:
+    return {"kind": "unavailable", "reason": reason, "source": None}
+
+
+def capability(status: str, reason: str | None, provider, state: dict) -> dict:
+    return {
+        "available": status == READY,
+        "status": status,
+        "reason": reason,
+        "provider": provider,
+        "state": state,
+    }
+
+
+def pkg_version(name: str) -> str | None:
+    rc, out = run(["pacman", "-Q", name])
+    return out if rc == 0 and out else None
+
+
+# --- host -------------------------------------------------------------------
+
+
+def probe_host() -> dict:
+    distro = "unknown"
+    rc, out = run(["sh", "-c", ". /etc/os-release && echo ${PRETTY_NAME:-$NAME}"])
+    if rc == 0 and out:
+        distro = out
+    # Only qualifies a distro we actually identified: "unknown 4.0.0.alpha"
+    # reads like a version of nothing.
+    if distro != "unknown":
+        try:
+            version = open(
+                os.path.expanduser("~/.local/share/omarchy/version")
+            ).read().strip()
+            if version:
+                distro = f"{distro} {version}"
+        except OSError:
+            pass
+
+    desktop = os.environ.get("XDG_CURRENT_DESKTOP", "unknown")
+    rc, out = run(["hyprctl", "version"])
+    if rc == 0 and out:
+        desktop = " ".join(out.splitlines()[0].split()[:2])
+
+    # Subnet, never the host address: this output gets pasted into issues.
+    subnet = None
+    rc, out = run(["ip", "-4", "-o", "addr", "show", "scope", "global"])
+    if rc == 0:
+        for line in out.splitlines():
+            fields = line.split()
+            if len(fields) < 4:
+                continue
+            iface = fields[1]
+            if iface.startswith(("docker", "br-", "virbr", "veth", "tailscale")):
+                continue
+            # ip_network rather than zeroing the last octet: a /16 zeroed at
+            # the fourth octet yields 10.1.2.0/16, which is not that network.
+            try:
+                subnet = str(ipaddress.ip_network(fields[3], strict=False))
+            except ValueError:
+                continue
+            break
+
+    return {"distro": distro, "desktop": desktop, "subnet": subnet}
+
+
+# --- capabilities -----------------------------------------------------------
+
+
+def probe_file_transfer() -> dict:
+    if not shutil.which("rquickshare"):
+        return capability(
+            NOT_INSTALLED, "rquickshare is not installed", None,
+            {"running": False, "peers": unavailable("rquickshare is not running")},
+        )
+
+    provider = pkg_version("r-quick-share") or "rquickshare"
+    running = run(["pgrep", "-x", "rquickshare"])[0] == 0
+    if not running:
+        return capability(
+            NO_ANSWER, "rquickshare is installed but not running", provider,
+            {"running": False, "peers": unavailable("rquickshare is not running")},
+        )
+
+    # Deliberately not reporting the listening port. It is chosen afresh on
+    # every launch (measured: 35475, then 34261 after a restart), so it is not
+    # a stable fact about the machine and a consumer must not cache it.
+    #
+    # peers is unavailable rather than [], because an empty list reads as
+    # "we looked and nobody is there" — which is exactly the wrong thing to
+    # show next to status: ready.
+    return capability(
+        READY, None, provider,
+        {
+            "running": True,
+            "peers": unavailable("peer discovery is not implemented yet (B1)"),
+        },
+    )
+
+
+def probe_phone_link() -> dict:
+    if not shutil.which("kdeconnect-cli"):
+        return capability(
+            NOT_INSTALLED, "kdeconnect is not installed", None, {"devices": []}
+        )
+
+    provider = pkg_version("kdeconnect") or "kdeconnect"
+    rc, out = run(["kdeconnect-cli", "--list-devices", "--id-only"], timeout=8)
+    if rc != 0:
+        return capability(
+            NO_ANSWER, "kdeconnect is installed but its daemon did not answer",
+            provider, {"devices": []},
+        )
+
+    devices = [d for d in out.splitlines() if d.strip()]
+    if not devices:
+        return capability(
+            NOTHING_PRESENT, "no device is paired with KDE Connect", provider,
+            {"devices": []},
+        )
+    return capability(READY, None, provider, {"devices": devices})
+
+
+def probe_buds(probe_bluetooth: bool) -> dict:
+    """Earbuds battery and ANC.
+
+    Does NOT talk to the earbuds unless explicitly asked. On the reference
+    machine, a tool bringing up a BLE listener segfaults bluetoothd and takes
+    the user's Bluetooth mouse down with it — reproduced three times out of
+    three on 2026-08-15. Until B0 settles whether that is rquickshare-specific
+    or lives in BlueZ, a status command must not be the thing that crashes
+    somebody's desktop. Reading the pairing list is safe; talking is not.
+    """
+
+    def out(status: str, reason: str, provider) -> dict:
+        return capability(
+            status, reason, provider,
+            {
+                "battery": battery_unavailable(reason),
+                "anc": unavailable(reason),
+            },
+        )
+
+    if not shutil.which("pbpctrl"):
+        return out(NOT_INSTALLED, "pbpctrl is not installed", None)
+
+    provider = pkg_version("pbpctrl") or "pbpctrl"
+
+    if not shutil.which("bluetoothctl"):
+        return out(NOT_INSTALLED, "bluetoothctl is not installed", provider)
+
+    # A failure here must NOT be reported as "nothing is paired". On this
+    # machine bluetoothd segfaults, and when it is down bluetoothctl exits
+    # non-zero with an empty list — which would tell the user to pair a device
+    # when what they actually need is to start a daemon. Collapsing those two
+    # is precisely what this contract exists to prevent.
+    rc, listing = run(["bluetoothctl", "devices", "Paired"])
+    if rc != 0:
+        return out(
+            NO_ANSWER,
+            "the bluetooth daemon did not answer, so what is paired is unknown",
+            provider,
+        )
+
+    # Matches "buds" only. Matching "pixel" too would count the phone as
+    # earbuds the moment it is paired over Bluetooth, which F2 will do shortly.
+    paired = [line for line in listing.splitlines() if "buds" in line.lower()]
+
+    if not paired:
+        return out(NOTHING_PRESENT, "no earbuds paired with this adapter", provider)
+
+    if not probe_bluetooth:
+        return out(
+            NOT_PROBED,
+            "earbuds paired but not queried: talking to them over BLE can "
+            "crash bluetoothd on this machine. Pass --probe-bluetooth to try",
+            provider,
+        )
+
+    return out(NOT_PROBED, "querying the earbuds is not implemented yet (B1)", provider)
+
+
+def build(probe_bluetooth: bool) -> dict:
+    return {
+        "schema": SCHEMA,
+        "generated": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "host": probe_host(),
+        "capabilities": {
+            "file-transfer": probe_file_transfer(),
+            "phone-link": probe_phone_link(),
+            "buds": probe_buds(probe_bluetooth),
+        },
+    }
+
+
+# --- output -----------------------------------------------------------------
+
+
+def render(data: dict) -> str:
+    lines = [f"host    {data['host']['distro']}, {data['host']['desktop']}"]
+    subnet = data["host"]["subnet"]
+    lines.append(f"subnet  {subnet if subnet else 'none'}")
+    lines.append("")
+
+    for name, cap in data["capabilities"].items():
+        mark = "+" if cap["available"] else "-"
+        lines.append(f"  {mark} {name}")
+        if cap["provider"]:
+            lines.append(f"      via {cap['provider']}")
+        if cap["reason"]:
+            lines.append(f"      {cap['reason']}")
+
+        battery = cap["state"].get("battery")
+        if battery and battery["kind"] == "per_bud":
+            parts = [
+                f"{k} {battery[k]}%" for k in ("left", "right", "case")
+                if battery.get(k) is not None
+            ]
+            lines.append(f"      battery {', '.join(parts)}")
+        elif battery and battery["kind"] == "combined":
+            lines.append(f"      battery {battery['combined']}% (combined)")
+    return "\n".join(lines)
+
+
+def main(argv: list[str]) -> int:
+    args = argv[1:]
+    if "--help" in args or "-h" in args:
+        print(__doc__.strip())
+        return 0
+
+    known = {"--json", "--probe-bluetooth"}
+    unknown = [a for a in args if a not in known]
+    if unknown:
+        # Not ignored silently: "--jsonn" quietly printing human output is the
+        # kind of thing that wastes an afternoon in a script somewhere.
+        print(f"unknown option: {unknown[0]} (try --help)", file=sys.stderr)
+        return 2
+
+    as_json = "--json" in args
+    probe_bluetooth = "--probe-bluetooth" in args
+
+    # Rendering is inside the try as well as building. The promise is that this
+    # command always produces parseable output, and a provider returning an
+    # unexpected shape must not turn into a traceback on the human path.
+    try:
+        data = build(probe_bluetooth)
+        print(json.dumps(data, indent=2) if as_json else render(data))
+        return 0
+    except Exception as exc:  # noqa: BLE001 - a status command must never die
+        # Even the failure is valid JSON carrying `error`, so a consumer can
+        # always parse. The exit code is what says the command itself broke.
+        print(
+            json.dumps(
+                {
+                    "schema": SCHEMA,
+                    "generated": datetime.now(timezone.utc).strftime(
+                        "%Y-%m-%dT%H:%M:%SZ"
+                    ),
+                    "host": {},
+                    "capabilities": {},
+                    "error": f"{type(exc).__name__}: {exc}",
+                },
+                indent=2,
+            )
+        )
+        return 1
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv))

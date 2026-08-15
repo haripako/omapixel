@@ -164,7 +164,29 @@ Two things this does not yet tell us, and both matter:
   than in anything Quick Share does, the entire Bluetooth half of this project
   sits on top of it.
 
-## A note for anyone reading logs on Omarchy
+## The adapter can do LE Audio and Auracast, on paper
+
+Measured 2026-08-15 with `btmgmt info`, which needs no privileges. First
+reported by the research agent from inside `docs/features.md`; re-run here
+independently before being written down, because that file is declared derived
+and this is a measurement of this machine.
+
+`hci0` lists `cis-central`, `cis-peripheral`, `iso-broadcaster` and
+`sync-receiver` in **both** `supported settings` and `current settings`. Those
+are the isochronous-channel prerequisites for LE Audio and Auracast, and they
+are not merely supported, they are active.
+
+`btmgmt` also prints `version 12`. **Deliberately not translated into a
+Bluetooth Core Specification number**: that mapping needs the SIG's Assigned
+Numbers table and has not been checked. The evidence here is the flags, not the
+version integer.
+
+**What this does not say, and the distance is large.** It says the controller
+exposes the capability. It says nothing about whether BlueZ and PipeWire can
+complete a real broadcast, and nothing about whether Pixel Buds Pro 2 will pair
+over LE Audio at all. Both remain unmeasured. Given that `bluetoothd` is
+currently segfaulting on this same adapter, treat controller capability as the
+floor of what is possible, not as a feature.
 
 The journal on this machine is flooded by the `dizziee.system-stats` plugin,
 which accounts for the overwhelming majority of lines. Filter it out:
