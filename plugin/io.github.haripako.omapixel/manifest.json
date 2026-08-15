@@ -1,0 +1,49 @@
+{
+  "schemaVersion": 1,
+  "id": "io.github.haripako.omapixel",
+  "name": "omapixel",
+  "version": "0.1.0",
+  "author": "haripako",
+  "license": "GPL-3.0-or-later",
+  "description": "Pixel and Pixel Buds status in the bar: earbuds battery, phone link, and file transfers",
+  "homepage": "https://github.com/haripako/omapixel",
+  "kinds": ["bar-widget"],
+  "entryPoints": {
+    "barWidget": "Panel.qml"
+  },
+  "barWidget": {
+    "displayName": "omapixel",
+    "description": "Earbuds battery, phone link and transfer status, read from omapixel-status",
+    "category": "System",
+    "allowMultiple": false,
+    "defaultSection": "right",
+    "defaults": {
+      "statusCommand": "",
+      "refreshSeconds": 30,
+      "hideWhenNothingAvailable": false
+    },
+    "schema": [
+      {
+        "key": "statusCommand",
+        "type": "string",
+        "label": "Status command",
+        "description": "Path to omapixel-status. Empty looks for it on PATH. This widget never talks to Bluetooth or to any tool directly; everything it draws comes from this one command.",
+        "defaultValue": ""
+      },
+      {
+        "key": "refreshSeconds",
+        "type": "number",
+        "label": "Refresh interval (seconds)",
+        "description": "Deliberately not one second. A full status call was measured at 2.09 s on the reference machine, almost all of it a fixed discovery wait inside kdeconnect-cli, so polling fast would leave a process permanently hanging.",
+        "defaultValue": 30
+      },
+      {
+        "key": "hideWhenNothingAvailable",
+        "type": "boolean",
+        "label": "Hide when nothing is available",
+        "description": "Off by default. A missing widget teaches nobody why; a widget saying what to install or start does.",
+        "defaultValue": false
+      }
+    ]
+  }
+}
