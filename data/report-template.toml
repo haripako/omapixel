@@ -32,6 +32,19 @@ bluez = "5.87"
 bt_adapter = "MediaTek MT7922"
 # Everything above is emitted ready to paste by: scripts/hw-report.sh --markdown
 
+# Phones only, and worth doing before anything else because it is free. Quick
+# Share needs both devices on the same network. Same subnet is necessary but
+# not sufficient: an access point can isolate clients that share one, so ping
+# the phone and report what actually came back.
+#
+# Subnets only, never host addresses. CI rejects any report containing a host
+# IP or a MAC address.
+[network]
+same_subnet_as_host = true
+subnet = "192.168.1.0/24"
+reachable = "30/30 ICMP replies, TTL 64, no gateway hop"
+rtt_ms = { min = 4.8, median = 338.0, p90 = 694.0, max = 1141.0, over_100ms = "18/30" }
+
 # One block per capability you tested. Ids come from data/capabilities.toml.
 [[result]]
 id = "file-receive"

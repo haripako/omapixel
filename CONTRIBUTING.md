@@ -57,6 +57,7 @@ do that yourself, open a pull request instead:
 | `[device]` | `model` | yes | e.g. `Pixel 9 Pro` |
 | `[device]` | `os` | no | Android version, or buds firmware if known |
 | `[host]` | any | no | Free-form key/value. Use `hw-report.sh --toml` |
+| `[network]` | any | no | Phones only: subnet, reachability, RTT. Subnets only, never host addresses |
 | `[[result]]` | `id` | yes | Must exist in `data/capabilities.toml` |
 | `[[result]]` | `status` | yes | `works`, `partial`, `broken` or `blocked` |
 | `[[result]]` | `method` | yes | `measured` or `derived` |

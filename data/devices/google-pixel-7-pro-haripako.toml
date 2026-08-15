@@ -26,11 +26,22 @@ kernel = "7.1.8-arch1-3"
 bluez = "5.87"
 bt_adapter = "MediaTek MT7922 (usb 0e8d:0608)"
 
+[network]
+# Quick Share's hard requirement, and the first thing worth checking on any
+# host: same subnet is necessary but not sufficient, since an access point can
+# isolate clients that share one.
+same_subnet_as_host = true
+subnet = "192.168.10.0/24"
+reachable = "30/30 ICMP replies, TTL 64, direct via the wired interface with no gateway hop"
+rtt_ms = { min = 4.8, median = 338.0, p90 = 694.0, max = 1141.0, over_100ms = "18/30" }
+
 # No [[result]] blocks yet: none of the tooling is installed on this host.
 # Measured on 2026-08-15, for the record:
 #   - Present over USB, first as 18d1:4ee7 (charging + adb, no MTP), then as
 #     18d1:4ee2 (MTP + adb) after the USB mode was changed on the phone. USB
 #     debugging is enabled, so adb will work over cable once android-tools is in.
 #   - Not paired over Bluetooth. The host has zero Google devices paired.
-#   - LAN subnet not yet confirmed against the host's 192.168.10.0/24, which is
-#     the hard requirement for anything Quick Share.
+#   - Zero packet loss alongside that RTT spread is the shape of a WiFi client
+#     parking its radio between beacons. It has NOT been shown to be the cause
+#     of the documented Quick Share discovery flakiness; the two are only
+#     consistent. F1 tests it by repeating the measurement with the screen on.

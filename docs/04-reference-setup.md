@@ -71,12 +71,29 @@ It may not build against current Rust. If it fails, the fallback is
 formality: the buds have to physically arrive before anything in F3 can be
 measured.
 
-**The PC is on ethernet, not WiFi.** Quick Share needs both devices on the same
-network. If the phone joins the same router over WiFi and lands in
-192.168.10.0/24, it should work — but that has to be confirmed, and it is the
-most likely first point of failure. If the router segregates WiFi from wired,
-the escape hatch is `wlp11s0`: the radio exists and is unblocked, just
-disconnected, so the PC can join the same WiFi.
+**The PC is on ethernet, not WiFi, and that turns out to be fine.** Measured on
+2026-08-15: the phone sits in the same 192.168.10.0/24 as the wired host and is
+reachable directly — 30 of 30 ICMP replies, TTL 64, and `ip route get` resolves
+straight out of `eno1` with no gateway hop. Same layer 2 segment, not merely the
+same subnet, so the access point is not isolating clients. Quick Share's hard
+requirement is met without touching `wlp11s0`, which stays available as an
+escape hatch if the network is ever re-segmented.
+
+A sweep of the /24 the same day found 24 live hosts, seven with
+locally-administered MAC addresses — the signature of phones with MAC
+randomisation on. Worth knowing when debugging discovery later: this is a busy
+home network, not a quiet lab.
+
+**Latency to the phone is bimodal, and F1 will have to account for it.** Over 30
+packets: zero loss, but a minimum of 4.8 ms against a median of 338 ms, a p90 of
+694 ms and a maximum of 1141 ms, with 18 of 30 above 100 ms. Zero loss with that
+spread is the shape of a WiFi client parking its radio between beacons.
+
+That is an observation, not a diagnosis. It has **not** been established that
+this is what causes the documented Quick Share discovery flakiness — the two are
+merely consistent, and it would be exactly the sort of plausible-sounding
+shortcut this project refuses to take. F1 tests it directly by repeating the
+measurement with the phone's screen on.
 
 **The Bluetooth adapter has form.** This MT7922 has a history of unexplained
 disconnections with the MX Master: it drops and does not reconnect, without

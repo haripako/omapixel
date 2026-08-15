@@ -16,8 +16,11 @@ Out: knowing exactly what hardware is here and what is missing.
 - [x] Run `scripts/hw-report.sh` and record the result
 - [x] Record which Google devices actually exist (Pixel 7 Pro on hand, Pixel 11 Pro and Pixel Buds Pro 2 on the way; Android 17)
 - [x] Pick a licence, language and contribution model so the repo can be published
-- [ ] Confirm the phone and the PC are on the same subnet (hard requirement for Quick Share)
+- [x] Confirm the phone and the PC are on the same subnet (hard requirement for Quick Share)
 - [ ] Pair the buds over Bluetooth and record the MAC — blocked until the hardware arrives
+
+**F0 is closed as far as the phone goes.** The remaining box needs hardware that
+has not arrived and blocks neither F1 nor F2.
 
 ## F1 — File transfer
 
