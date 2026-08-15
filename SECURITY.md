@@ -31,6 +31,22 @@ twelve hex digits match too much ordinary text to reject on sight, so that
 limit is deliberate rather than an oversight. The check is a floor, not a
 guarantee — read your own report before you send it.
 
+**A device name cannot reach a report through the tool, and you can check that
+rather than believe it.** A Bluetooth device is often named after whoever owns
+it, which makes it the obvious thing to worry about. But `hw-report.sh` never
+reads one: its only look at paired devices is `bluetoothctl devices Paired |
+grep -icE 'pixel|google'`, and `-c` counts matches instead of printing them.
+The report schema has nowhere to put one either — `vendor` and `model` are
+catalogue values like "Google" and "Pixel 9 Pro", not the name a device
+announces. That is a property of one line you can read, not a promise you have
+to take on trust.
+
+The exception is `notes`, which is prose you write yourself. Nothing filters
+it, deliberately: catching people's names would need per-language lists and
+possessive patterns, and a check that rejects honest reports costs more than
+the case it catches. So it is asked for at the point of writing instead — no
+device names, no people's names.
+
 If you write a report by hand, do the same. If you spot published data that
 identifies somebody, say so and it will be removed.
 

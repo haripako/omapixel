@@ -46,6 +46,12 @@ reachable = "30/30 ICMP replies, TTL 64, no gateway hop"
 rtt_ms = { min = 4.8, median = 338.0, p90 = 694.0, max = 1141.0, over_100ms = "18/30" }
 
 # One block per capability you tested. Ids come from data/capabilities.toml.
+#
+# `notes` is prose you write yourself, and it is the one field nothing checks
+# for you: no device names, no people's names. Everything else here is a
+# catalogue value or a version string, and hw-report.sh never reads a device
+# name at all — it counts matches, it does not print them. Your note is the
+# only place a "Marta's Buds" can reach a published document.
 [[result]]
 id = "file-receive"
 status = "works"               # works | partial | broken | blocked

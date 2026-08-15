@@ -76,3 +76,7 @@ body:
       description: |
         Failure modes, things you have not ruled out, oddities. Please do not
         state a cause you have not reproduced — describe what you observed.
+
+        This box is prose, so nothing filters it for you: no device names and
+        no people's names. A Bluetooth device is often called after whoever
+        owns it, and this issue is public.

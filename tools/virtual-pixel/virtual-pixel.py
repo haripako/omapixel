@@ -276,6 +276,15 @@ def serve(name: str, port: int, once: bool, mode: str, lan: bool) -> int:
         # decision, not two.
         say("not advertising", "loopback-only, so mDNS would publish an unreachable endpoint. Use --lan")
     else:
+        # Echo the exact name before publishing it, not after. --name is free
+        # text, so `--lan --name "$(hostname)"` broadcasts whatever that is to
+        # the whole segment — on the reference machine the hostname is a
+        # person's first name. Quick Share discovery is unauthenticated, so
+        # anyone listening reads it, and an announcement cannot be recalled.
+        # The operator is allowed to do it; they are not allowed to do it
+        # without seeing what goes out.
+        say("advertising", f"publishing the name {name!r} to every device on "
+                           f"this network. This cannot be unpublished")
         advert.start()
 
     # The audit runs again after every socket and subprocess exists, because
