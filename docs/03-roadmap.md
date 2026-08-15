@@ -1,68 +1,85 @@
 # Roadmap
 
-Cada fase entra con algo concreto y sale con algo comprobable. Nada de pasar a
-la siguiente sin haber medido la anterior.
+Each phase starts with something concrete and ends with something checkable.
+Nothing moves on until the previous phase has actually been measured.
 
-## F0 — Inventario y entorno
+Checkboxes here track the **reference machine** (see
+[reference setup](04-reference-setup.md)). Other people's hardware is tracked in
+the [capability matrix](02-capability-matrix.md) instead, which is generated
+from device reports.
 
-Entras con: una máquina limpia y este repo.
-Sales con: saber exactamente qué hardware hay y qué falta instalar.
+## F0 — Inventory and environment
 
-- [ ] Ejecutar `scripts/check-entorno.sh` y volcar el resultado en `04-inventario.md`
-- [ ] Anotar qué aparatos Google hay realmente (modelo de Pixel, modelo de Buds, versión de Android)
-- [ ] Emparejar los Buds por Bluetooth y anotar la MAC
-- [ ] Comprobar que el móvil y el PC están en la misma subred WiFi (requisito duro de Quick Share)
+In: a clean machine and this repository.
+Out: knowing exactly what hardware is here and what is missing.
 
-## F1 — Transferencia de ficheros
+- [x] Run `scripts/hw-report.sh` and record the result
+- [x] Record which Google devices actually exist (Pixel 7 Pro on hand, Pixel 11 Pro and Pixel Buds Pro 2 on the way; Android 17)
+- [x] Pick a licence, language and contribution model so the repo can be published
+- [ ] Confirm the phone and the PC are on the same subnet (hard requirement for Quick Share)
+- [ ] Pair the buds over Bluetooth and record the MAC — blocked until the hardware arrives
 
-Entras con: F0 cerrada.
-Sales con: mandar y recibir del Pixel sin tocar un cable.
+## F1 — File transfer
 
-- [ ] Instalar `r-quick-share` desde AUR
-- [ ] Probar recepción PC ← móvil y envío PC → móvil
-- [ ] Medir el problema de descubrimiento: cuántos intentos hasta que aparece, y si mejora con la pantalla del móvil encendida
-- [ ] Verificar el indicador de bandeja bajo Hyprland y con la barra de Quickshell
-- [ ] Si el arranque automático es necesario, dejarlo como servicio de usuario
+In: F0 closed.
+Out: sending and receiving from the Pixel without a cable.
 
-## F2 — Portapapeles y notificaciones
+- [ ] Install `r-quick-share` from the AUR
+- [ ] Test receiving PC ← phone and sending PC → phone
+- [ ] Measure the discovery problem: how many attempts until the device appears, and whether having the phone's screen on helps
+- [ ] Verify the tray indicator under Hyprland with the Quickshell bar
+- [ ] If autostart is needed, set it up as a user service
 
-Entras con: F1 funcionando.
-Sales con: copiar en el móvil y pegar en el PC.
+Testable in full on the Pixel 7 Pro. Does not wait for the Pixel 11 Pro.
 
-- [ ] Instalar `kdeconnect` y la app de Android
-- [ ] Emparejar y validar: portapapeles en los dos sentidos, notificaciones, SMS
-- [ ] Verificar el portapapeles bajo Wayland (`wl-clipboard`)
-- [ ] Decidir cómo arranca el daemon en la sesión de Hyprland
-- [ ] Comprobar si el icono de bandeja convive con la barra
+## F2 — Clipboard and notifications
+
+In: F1 working.
+Out: copy on the phone, paste on the PC.
+
+- [ ] Install `kdeconnect` and the Android app
+- [ ] Pair and validate: clipboard both ways, notifications, SMS
+- [ ] Verify the clipboard under Wayland (`wl-clipboard`)
+- [ ] Decide how the daemon starts in the Hyprland session
+- [ ] Check whether the tray icon coexists with the bar
+
+Also testable in full on the Pixel 7 Pro.
 
 ## F3 — Pixel Buds
 
-Entras con: los Buds emparejados.
-Sales con: batería y ANC desde el escritorio.
+In: the buds paired.
+Out: battery and ANC from the desktop.
 
-- [ ] Instalar `pbpctrl` desde AUR (ojo: 482 días sin actualizar, puede no compilar)
-- [ ] Comprobar qué modelo de Buds responde y qué campos devuelve
-- [ ] Si `pbpctrl` está muerto, evaluar `budslink-git` y si ha añadido Pixel Buds
-- [ ] Envolver la lectura de batería en un script estable para consumir desde la barra
+- [ ] Install `pbpctrl` from the AUR (482 days without an update — it may not build)
+- [ ] Find out which buds model responds and which fields come back
+- [ ] If `pbpctrl` is dead, evaluate `budslink-git` and whether it has added Pixel Buds
+- [ ] Wrap the battery read in a stable script the bar can consume
 
-## F4 — Integración con Omarchy (aquí empieza lo original)
+**Blocked on hardware, and the riskiest phase.** pbpctrl targets the first
+generation Pixel Buds Pro; the Pro 2 use a different SoC, so the proprietary
+protocol may not match. Nothing here is assumed until it prints on a terminal.
 
-Entras con: F1-F3 dando datos por línea de órdenes.
-Sales con: que todo esto se vea y se use desde el escritorio.
+## F4 — Omarchy integration (where the original work starts)
 
-- [ ] Plugin de barra: batería de los Buds y estado del móvil
-- [ ] Atajos de Hyprland: ciclar ANC, enviar el fichero seleccionado al móvil
-- [ ] Entrada en el menú de Omarchy
-- [ ] Empaquetar el plugin siguiendo `manifest.json` + `omarchy plugin validate`
+In: F1 to F3 producing data on the command line.
+Out: all of it visible and usable from the desktop.
 
-## F5 — Investigación (sin compromiso de que salga)
+- [ ] Bar plugin: buds battery and phone status
+- [ ] Hyprland keybindings: cycle ANC, send the selected file to the phone
+- [ ] Entry in the Omarchy menu
+- [ ] Package the plugin following `manifest.json` and `omarchy plugin validate`
 
-- [ ] Fast Pair: ¿hay especificación pública del lado *provider*? ¿Sirve de algo sin los servicios de Google Play?
-- [ ] Cross-device services: ¿tráfico observable? ¿está atado a atestación de dispositivo?
-- [ ] Decidir con honestidad si esto es viable o si se cierra la puerta y se documenta el porqué
+The plugin scaffolding can be built against fake data before F3 lands, which is
+worth doing given the QML restart cycle.
 
-## Principio del proyecto
+## F5 — Research (no promise anything comes of it)
 
-Antes de escribir código propio, comprobar que no existe ya. Y antes de dar por
-buena una función, medirla contra el aparato real — no contra el README de
-nadie.
+- [ ] Fast Pair: is there a public specification for the *provider* side? Is it worth anything without Google Play Services?
+- [ ] Cross-device services: is the traffic observable? Is it tied to device attestation?
+- [ ] Decide honestly whether this is viable, or close the door and document why
+
+## The project's principle
+
+Before writing your own code, check it does not already exist. And before
+calling a feature done, measure it against real hardware — not against somebody
+else's README.

@@ -1,0 +1,144 @@
+#
+# Capability registry — the canonical list of things this project tries to do.
+#
+# This file defines the ROWS of the compatibility matrix. Device reports in
+# data/devices/*.toml fill in the CELLS by referencing these ids.
+#
+# Adding a capability here without any device reporting on it is fine: it shows
+# up in the matrix as untested everywhere, which is useful information.
+#
+# Do not rename an `id` once it has been used in a device report. Ids are the
+# join key; renaming one silently orphans every result that referenced it.
+#
+
+schema = 1
+
+[[capability]]
+id = "file-send"
+name = "Send files to the phone"
+apple = "AirDrop"
+phase = "F1"
+tool = "rquickshare"
+notes = "Requires both devices on the same LAN subnet."
+
+[[capability]]
+id = "file-receive"
+name = "Receive files from the phone"
+apple = "AirDrop"
+phase = "F1"
+tool = "rquickshare"
+notes = "Android advertises its mDNS intermittently; discovery is the weak point."
+
+[[capability]]
+id = "clipboard"
+name = "Shared clipboard"
+apple = "Universal Clipboard"
+phase = "F2"
+tool = "kdeconnect"
+notes = "Needs verifying against wl-clipboard under Wayland."
+
+[[capability]]
+id = "notifications"
+name = "Phone notifications on the desktop"
+apple = "Notification Centre"
+phase = "F2"
+tool = "kdeconnect"
+notes = "Must coexist with the Omarchy notification daemon."
+
+[[capability]]
+id = "sms"
+name = "Send and read SMS from the desktop"
+apple = "Messages"
+phase = "F2"
+tool = "kdeconnect"
+
+[[capability]]
+id = "remote-input"
+name = "Phone as remote control or keyboard"
+apple = "Continuity"
+phase = "F2"
+tool = "kdeconnect"
+
+[[capability]]
+id = "screen-mirror"
+name = "Phone screen on the desktop"
+apple = "iPhone Mirroring"
+phase = "F2"
+tool = "scrcpy"
+notes = "Needs USB debugging or ADB over WiFi."
+
+[[capability]]
+id = "buds-battery"
+name = "Per-earbud and case battery"
+apple = "AirPods battery in Control Centre"
+phase = "F3"
+tool = "pbpctrl"
+notes = "Standard AVRCP gives one combined figure only. Three separate readings require the proprietary protocol. The case has no radio of its own and only reports whether an earbud is inside."
+
+[[capability]]
+id = "buds-anc"
+name = "Read and set ANC mode"
+apple = "Noise control"
+phase = "F3"
+tool = "pbpctrl"
+
+[[capability]]
+id = "buds-eq"
+name = "Read and set the equaliser"
+apple = "Headphone accommodations"
+phase = "F3"
+tool = "pbpctrl"
+
+[[capability]]
+id = "bar-widget"
+name = "Omarchy bar widget for buds and phone"
+apple = "Control Centre"
+phase = "F4"
+tool = "omapixel"
+notes = "Nothing exists for this. It is the original work in this project."
+
+[[capability]]
+id = "hotkeys"
+name = "Hyprland keybindings (cycle ANC, send file to phone)"
+apple = "—"
+phase = "F4"
+tool = "omapixel"
+
+[[capability]]
+id = "menu-entry"
+name = "Entry in the Omarchy menu"
+apple = "—"
+phase = "F4"
+tool = "omapixel"
+
+[[capability]]
+id = "fast-pair"
+name = "Instant pairing when the case opens"
+apple = "AirPods pairing"
+phase = "F5"
+tool = "—"
+notes = "No known Linux implementation of the Fast Pair provider side."
+
+[[capability]]
+id = "instant-hotspot"
+name = "Tethering without entering a password"
+apple = "Instant Hotspot"
+phase = "F5"
+tool = "—"
+notes = "Google Cross-device services: same Google account, Android and ChromeOS only."
+
+[[capability]]
+id = "call-casting"
+name = "Move a call between devices"
+apple = "Call handoff"
+phase = "F5"
+tool = "—"
+notes = "Google Cross-device services. Same constraint as instant-hotspot."
+
+[[capability]]
+id = "app-handoff"
+name = "Continue an app across devices"
+apple = "Handoff"
+phase = "F5"
+tool = "—"
+notes = "No equivalent concept outside Apple-to-Apple or Google-to-Google."

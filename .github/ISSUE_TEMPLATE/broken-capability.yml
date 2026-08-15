@@ -1,0 +1,73 @@
+name: Something does not work
+description: A capability that is documented as working fails on your setup
+title: "[broken] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this when the matrix says a capability works and it does not work
+        for you. If you are reporting a device for the first time, use
+        **Hardware report** instead.
+
+        Feel free to write in English or Spanish.
+
+  - type: input
+    id: capability
+    attributes:
+      label: Capability
+      description: The id from data/capabilities.toml, or just describe it.
+      placeholder: file-receive
+    validations:
+      required: true
+
+  - type: input
+    id: tool
+    attributes:
+      label: Tool and exact version
+      description: Not "latest". The version you actually ran.
+      placeholder: r-quick-share 0.11.5-5
+    validations:
+      required: true
+
+  - type: textarea
+    id: host
+    attributes:
+      label: Host report
+      description: Output of `scripts/hw-report.sh --markdown`.
+      render: markdown
+    validations:
+      required: true
+
+  - type: textarea
+    id: observed
+    attributes:
+      label: What you did and what happened
+      description: |
+        Steps, and the actual failure. Include how many times you tried —
+        several things in this stack fail intermittently, and "once" versus
+        "ten times out of ten" are different bugs.
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: |
+        On Omarchy the journal can be flooded by the system-stats plugin, so
+        filter it:
+
+        `journalctl -b -u bluetooth | grep -v 'dizziee.system-stats'`
+      render: shell
+
+  - type: checkboxes
+    id: ruled-out
+    attributes:
+      label: Ruled out
+      description: Only tick what you actually checked. Blank is fine.
+      options:
+        - label: Both devices are on the same subnet
+        - label: Tried with the phone's screen on
+        - label: Tried a second Bluetooth adapter
+        - label: Reproduced after a reboot

@@ -1,0 +1,48 @@
+#
+# Device report template.
+#
+# Copy to data/devices/<vendor>-<model>-<your-handle>.toml, lowercase and
+# hyphenated, e.g. data/devices/google-pixel-9-pro-jsmith.toml
+#
+# Full field reference: CONTRIBUTING.md
+# Rules that matter: docs/conventions.md
+#
+# Only report what you actually ran. A capability you did not test should be
+# LEFT OUT, not marked as working. Absent means untested, and untested is a
+# perfectly good thing to report.
+#
+
+schema = 1
+
+[reporter]
+handle = "your-github-handle"
+date = "2026-08-15"            # ISO 8601, the date you took the measurements
+
+[device]
+kind = "phone"                 # phone | earbuds
+vendor = "Google"
+model = "Pixel 9 Pro"
+os = "Android 16"              # for earbuds, the firmware version if you know it
+
+[host]
+distro = "Arch Linux"
+desktop = "Omarchy 4 / Hyprland"
+kernel = "7.1.8-arch1-3"
+bluez = "5.87"
+bt_adapter = "MediaTek MT7922"
+# Everything above is emitted ready to paste by: scripts/hw-report.sh --markdown
+
+# One block per capability you tested. Ids come from data/capabilities.toml.
+[[result]]
+id = "file-receive"
+status = "works"               # works | partial | broken | blocked
+method = "measured"            # measured | derived  — see docs/conventions.md
+tool = "r-quick-share 0.11.5"  # exact version you ran, not the latest release
+notes = "Phone appeared after 3 attempts, only with the screen on."
+
+[[result]]
+id = "buds-battery"
+status = "partial"
+method = "measured"
+tool = "pbpctrl 0.1.8"
+notes = "Combined figure only. No case reading."

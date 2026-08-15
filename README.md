@@ -1,37 +1,105 @@
-# pixel-omarchy
+# omapixel
 
-Integrar el ecosistema de Google (móviles Pixel, Pixel Buds y lo que se sume) con
-Arch Linux + Omarchy sobre Hyprland/Wayland, tan cerca como se pueda de lo que
-hace Apple entre iPhone y Mac: compartir ficheros sin fricción, portapapeles
-común, notificaciones, emparejado inmediato y control de los auriculares.
+Bringing the Google ecosystem — Pixel phones, Pixel Buds, and whatever else gets
+added — as close to Arch Linux with [Omarchy](https://omarchy.org) on
+Hyprland/Wayland as Apple manages between an iPhone and a Mac: file sharing
+without friction, a shared clipboard, notifications, instant pairing, and
+control over the earbuds.
+
+This is not a from-scratch product. The strategy is to **integrate what already
+exists and works, measure where it fails, and write only the missing pieces** —
+above all the Omarchy layer (bar widgets, keybindings, menu), which is where
+nobody has done the work.
+
+> **Status: early.** Nothing is installed yet on the reference machine, and no
+> capability has been measured on any device. The [capability
+> matrix](docs/02-capability-matrix.md) is honest about that: almost everything
+> reads `untested`, because it is.
+
+## The one rule
+
+Every claim here is tagged **measured** (somebody ran it and watched what
+happened) or **derived** (it came from a README, an AUR page or a news article).
+The two never get blurred, and derived never graduates to measured by being
+repeated. See [conventions](docs/conventions.md).
+
+## Documentation
+
+| File | What is in it |
+|---|---|
+| [docs/conventions.md](docs/conventions.md) | The measured/derived rule and what the statuses mean. Read this first |
+| [docs/01-landscape.md](docs/01-landscape.md) | State of the art, with sources and a date. Entirely derived |
+| [docs/02-capability-matrix.md](docs/02-capability-matrix.md) | Generated. Function by function, per device, with a name and a date on every cell |
+| [docs/03-roadmap.md](docs/03-roadmap.md) | Phases F0 to F5, from what works this afternoon to pure research |
+| [docs/04-reference-setup.md](docs/04-reference-setup.md) | The maintainer's machine, measured. The baseline others get compared against |
+
+## Scripts
+
+Neither of these installs anything. `hw-report.sh` prints the exact commands and
+stops; running them is your decision.
+
+```bash
+scripts/hw-report.sh              # check this machine
+scripts/hw-report.sh --markdown   # block to paste into a hardware report issue
+scripts/build-matrix.py           # regenerate the capability matrix from data/
+```
+
+## Contributing
+
+**The most useful thing you can send is a measurement from hardware nobody here
+owns.** One Pixel and one pair of Buds Pro 2 is the entire hardware pool behind
+this repository; everything said about a Pixel 9, first-generation Buds Pro,
+Buds A-Series or a different Bluetooth adapter is guesswork until somebody
+reports it.
+
+Run `scripts/hw-report.sh --markdown`, open a **Hardware report** issue, paste.
+That is the whole ask. Details in [CONTRIBUTING.md](CONTRIBUTING.md).
+
+## Licence
+
+GPL-3.0. See [LICENSE](LICENSE).
+
+---
+
+# omapixel (español)
+
+Integrar el ecosistema de Google — móviles Pixel, Pixel Buds y lo que se sume —
+con Arch Linux y [Omarchy](https://omarchy.org) sobre Hyprland/Wayland, tan cerca
+como se pueda de lo que hace Apple entre iPhone y Mac: compartir ficheros sin
+fricción, portapapeles común, notificaciones, emparejado inmediato y control de
+los auriculares.
 
 No es un producto nuevo desde cero. La estrategia es **integrar lo que ya existe
 y funciona, medir dónde falla, y escribir solo las piezas que falten** — sobre
 todo la capa de Omarchy (widgets de barra, atajos, menú), que es donde nadie ha
 hecho el trabajo.
 
-## Estado
+> **Estado: fase temprana.** No hay nada instalado todavía en la máquina de
+> referencia y ninguna función se ha medido en ningún aparato. La matriz de
+> capacidades lo dice sin adornos: casi todo pone `untested`, porque lo está.
 
-**Fase 0 — inventario y panorama.** Nada instalado todavía. La máquina parte de
-cero: ni Quick Share, ni KDE Connect, ni herramientas de Android.
+## La regla que manda
 
-## Documentos
+Cada afirmación está marcada como **medida** (alguien lo ejecutó y vio qué
+pasaba) o **derivada** (sale de un README, del AUR o de una noticia). Las dos
+cosas no se mezclan nunca, y lo derivado no asciende a medido por repetirse.
 
-| Fichero | Qué contiene |
-|---|---|
-| `docs/01-panorama.md` | Estado del arte real, con fuentes y fecha. Qué existe, qué está vivo y qué está muerto |
-| `docs/02-matriz-capacidades.md` | Función por función: equivalente Apple, si es posible hoy en Linux y con qué |
-| `docs/03-roadmap.md` | Fases, de lo que funciona esta tarde a lo que es investigación pura |
-| `docs/04-inventario.md` | Qué hay medido en esta máquina y qué falta |
+## Documentación
 
-## Scripts
+La documentación técnica está en inglés para que pueda colaborar gente con
+hardware que aquí no tenemos. Empieza por
+[docs/conventions.md](docs/conventions.md).
 
-- `scripts/check-entorno.sh` — comprueba qué está instalado y escupe las órdenes
-  exactas de instalación de lo que falte. No instala nada por su cuenta.
+## Cómo colaborar
 
-## Aviso sobre las fuentes
+Lo más útil que puedes aportar es **una medida hecha sobre hardware que aquí no
+hay**: unos Buds Pro de primera generación, un Pixel de otra gama, otro
+adaptador Bluetooth. Ejecuta `scripts/hw-report.sh --markdown`, abre una issue de
+tipo *Hardware report* y pega el bloque. Ya está.
 
-Todo lo de `docs/01-panorama.md` viene de búsqueda web del **15 de agosto de
-2026** y de consultar el AUR en esa fecha; está marcado como derivado. Lo de
-`docs/04-inventario.md` está **medido** en esta máquina. No mezclar las dos cosas:
-en este terreno las cosas envejecen rápido.
+Las issues en español son bienvenidas: nadie debería quedarse fuera de reportar
+un aparato por el idioma.
+
+## Licencia
+
+GPL-3.0.

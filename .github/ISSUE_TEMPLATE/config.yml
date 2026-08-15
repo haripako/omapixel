@@ -1,0 +1,11 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Upstream — rquickshare
+    url: https://github.com/Martichou/rquickshare/issues
+    about: Quick Share protocol bugs belong upstream, not here. This project integrates it.
+  - name: Upstream — pbpctrl
+    url: https://github.com/qzed/pbpctrl/issues
+    about: Pixel Buds protocol bugs belong upstream. Note the project has been quiet for a long time.
+  - name: Upstream — KDE Connect
+    url: https://invent.kde.org/network/kdeconnect-kde/-/issues
+    about: Clipboard, notification and SMS bugs belong upstream.

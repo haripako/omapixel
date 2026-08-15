@@ -1,0 +1,78 @@
+name: Hardware report
+description: Tell us what happened on a Pixel, on Pixel Buds, or on a host we do not have
+title: "[hardware] "
+labels: ["hardware-report"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        This is the most useful issue you can open here. Reports from hardware
+        the maintainer does not own are the whole point of the project.
+
+        **Only report what you actually ran.** Anything you did not test, leave
+        blank — untested is a perfectly good answer and far more useful than a
+        guess. See [docs/conventions.md](https://github.com/haripako/omapixel/blob/main/docs/conventions.md).
+
+        Feel free to write in English or Spanish.
+
+  - type: input
+    id: device
+    attributes:
+      label: Device
+      description: Vendor and exact model.
+      placeholder: Google Pixel Buds Pro (1st generation)
+    validations:
+      required: true
+
+  - type: dropdown
+    id: kind
+    attributes:
+      label: Kind
+      options:
+        - phone
+        - earbuds
+    validations:
+      required: true
+
+  - type: input
+    id: os
+    attributes:
+      label: OS or firmware version
+      description: Android version for a phone; firmware for earbuds, if you know it.
+      placeholder: Android 16
+
+  - type: textarea
+    id: host
+    attributes:
+      label: Host report
+      description: |
+        Output of `scripts/hw-report.sh --markdown`. It installs nothing, and it
+        redacts MAC addresses and host IPs so it is safe to paste in public.
+      render: markdown
+    validations:
+      required: true
+
+  - type: textarea
+    id: results
+    attributes:
+      label: What you tested
+      description: |
+        One line per capability, with the exact tool version. Capability names
+        are in [data/capabilities.toml](https://github.com/haripako/omapixel/blob/main/data/capabilities.toml).
+
+        Statuses: `works`, `partial`, `broken`, `blocked`. Reach for `partial`
+        when in doubt — the caveat is usually the valuable part.
+      placeholder: |
+        file-receive — works — r-quick-share 0.11.5 — appeared on the 3rd attempt, only with the phone screen on
+        buds-battery — partial — pbpctrl 0.1.8 — combined figure only, no case reading
+        buds-anc — broken — pbpctrl 0.1.8 — connects, then times out reading the setting
+    validations:
+      required: true
+
+  - type: textarea
+    id: notes
+    attributes:
+      label: Anything else
+      description: |
+        Failure modes, things you have not ruled out, oddities. Please do not
+        state a cause you have not reproduced — describe what you observed.

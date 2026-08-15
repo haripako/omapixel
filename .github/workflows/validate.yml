@@ -1,0 +1,48 @@
+name: validate
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  data:
+    name: Reports and matrix
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # Validates every data/devices/*.toml against data/capabilities.toml and
+      # fails if the generated matrix was not regenerated after a data change.
+      - name: Validate device reports and check the matrix is current
+        run: scripts/build-matrix.py --check
+
+  shell:
+    name: Shell scripts
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Syntax
+        run: bash -n scripts/hw-report.sh
+
+      # Warning level and above. The reference machine has no shellcheck, so
+      # style findings would otherwise fail builds nobody can reproduce locally.
+      - name: shellcheck
+        run: shellcheck --severity=warning scripts/hw-report.sh
+
+      # The scripts must never install anything: they print the command and stop.
+      # This is a contract with contributors, so it gets enforced rather than
+      # documented and forgotten.
+      - name: No script installs packages
+        run: |
+          if grep -nE '^[^#]*\b(sudo +pacman|yay|pacman +-S|apt(-get)? +install)\b' scripts/*.sh \
+             | grep -vE 'echo|printf'; then
+            echo "A script appears to run a package manager. Print the command instead." >&2
+            exit 1
+          fi
+          echo "ok: no script runs a package manager"
