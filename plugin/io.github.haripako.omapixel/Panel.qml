@@ -76,6 +76,11 @@ BarWidget {
     }
   }
 
+  // The one action a middle click would run: the first available one on the
+  // slot the glyph is showing. Never an unavailable action — offering a button
+  // that cannot work is worse than offering none.
+  readonly property var offered: root.worst ? root.worst.primaryAction : null
+
   function line(s) {
     var text = s.name + ": " + s.summary
     if (s.action) text += "  → " + s.action
@@ -85,6 +90,13 @@ BarWidget {
     if (s.stale === true) text += "  (stale)"
     if (s.unblockedBy) text += "\n    clears when: " + s.unblockedBy
     if (s.detail) text += "\n    " + s.detail
+    // An action nobody can find is not an action. Both halves are listed: what
+    // can be done, and what cannot and why.
+    for (var i = 0; i < s.actions.length; i++) {
+      var a = s.actions[i]
+      text += "\n    " + (a.available ? "can: " : "cannot: ") + a.label
+      if (!a.available && a.reason) text += " — " + a.reason
+    }
     return text
   }
 
@@ -92,6 +104,7 @@ BarWidget {
     if (view.broken) return "omapixel: " + view.detail
     var lines = []
     for (var i = 0; i < view.slots.length; i++) lines.push(line(view.slots[i]))
+    if (root.offered) lines.push("middle click: " + root.offered.label)
     return lines.join("\n")
   }
 
@@ -120,6 +133,17 @@ BarWidget {
     }
   }
 
+  Process {
+    id: act
+    property string actionId: ""
+    // A separate command from the status one, and deliberately so: the status
+    // command runs on a timer several times a minute and must never change
+    // anything. This one only runs when a person clicks.
+    command: ["sh", "-c",
+      "omapixel-do '" + actionId + "' >/dev/null 2>&1; exit 0"]
+    onExited: probe.running = true   // show the result rather than assume it
+  }
+
   Timer {
     // 84 ms per call as measured on 2026-08-16, so polling is affordable now.
     // It was 2090 ms before KDE Connect was asked over D-Bus instead of its
@@ -141,6 +165,13 @@ BarWidget {
     // Refresh on demand. Nothing here writes to a device: changing ANC or
     // sending a file means talking to hardware, and that belongs to the
     // backend side, behind its own command.
-    onPressed: function(b) { probe.running = true }
+    onPressed: function(b) {
+      if (b === Qt.MiddleButton && root.offered) {
+        act.actionId = root.offered.id
+        act.running = true
+      } else {
+        probe.running = true
+      }
+    }
   }
 }

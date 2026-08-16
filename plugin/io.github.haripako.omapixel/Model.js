@@ -158,6 +158,42 @@ function trust(origin) {
   return { real: false, qualifier: "origin unknown" };
 }
 
+
+// --- actions ------------------------------------------------------------------
+
+// The fourth primitive. `actions` is absent whenever there is nothing to do,
+// which is most of the time, so this must never assume the key exists — a
+// consumer that reads it unguarded breaks in the normal case and works in the
+// exceptional one, which is the worst way round.
+//
+// Absent means no action. It never means "there is one and we are not saying".
+function actionsFrom(capability) {
+  var list = capability && capability.actions;
+  if (!Array.isArray(list)) return [];
+  var out = [];
+  for (var i = 0; i < list.length; i++) {
+    var a = list[i];
+    if (!a || typeof a.id !== "string" || a.id === "") continue;
+    out.push({
+      id: a.id,
+      // A label we were not given is not invented from the id: an id is a
+      // vocabulary token, not English.
+      label: typeof a.label === "string" && a.label !== "" ? a.label : a.id,
+      available: a.available === true,
+      reason: a.reason || null,
+    });
+  }
+  return out;
+}
+
+// The one worth putting on a button. Only an available action qualifies:
+// offering a button that cannot work is worse than offering none.
+function primaryAction(capability) {
+  var list = actionsFrom(capability);
+  for (var i = 0; i < list.length; i++) if (list[i].available) return list[i];
+  return null;
+}
+
 // --- a slot in the bar --------------------------------------------------------
 
 function slot(name, capability, nowMs, staleAfterSeconds) {
@@ -221,6 +257,8 @@ function slot(name, capability, nowMs, staleAfterSeconds) {
     // Never null: a consumer that forgets to check gets a qualifier rather
     // than silence, which is the safe direction.
     unblockedBy: (capability.state || {}).unblocked_by || null,
+    actions: actionsFrom(capability),
+    primaryAction: primaryAction(capability),
     origin: originOf(capability),
     qualifier: trusted.qualifier,
     real: trusted.real,
