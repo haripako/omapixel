@@ -1,0 +1,4 @@
+{"schema":1,"capabilities":{
+ "buds":{"status":"not_installed","available":false,"reason":"pbpctrl is not installed","state":{}},
+ "phone-link":{"status":"ready","available":true,"as_of":"2099-01-01T00:00:00Z","state":{"devices":["a"],"reachable":false}},
+ "file-transfer":{"status":"no_answer","available":false,"reason":"not running","as_of":"2020-01-01T00:00:00Z","state":{}}}}

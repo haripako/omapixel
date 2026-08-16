@@ -108,6 +108,35 @@ function phoneSummary(capability) {
   return null;
 }
 
+
+// --- origin -------------------------------------------------------------------
+
+// device | emulator | unknown. Absent counts as unknown, never as device.
+//
+// The direction matters more than the field. The emulator is the cheapest thing
+// in this project to run and the only one always available while the hardware
+// is missing, so an unqualified reading will not become wrong through bad faith
+// — it will become wrong because running the emulator is easy. A widget that
+// paints emulator data like hardware is the screenshot that ends up in an issue
+// as evidence of something nobody measured.
+//
+// Note as of 2026-08-16: `origin` exists in the device-report schema but is NOT
+// yet emitted by omapixel-status, so everything here currently resolves to
+// unknown. Written now because the defaulting direction is the whole point, and
+// getting it wrong later is a retrofit across every consumer.
+function originOf(thing) {
+  var value = thing && thing.origin;
+  if (value === "device" || value === "emulator") return value;
+  return "unknown";
+}
+
+// What a reading is allowed to claim, given where it came from.
+function trust(origin) {
+  if (origin === "device") return { real: true, qualifier: null };
+  if (origin === "emulator") return { real: false, qualifier: "emulator" };
+  return { real: false, qualifier: "origin unknown" };
+}
+
 // --- a slot in the bar --------------------------------------------------------
 
 function slot(name, capability, nowMs, staleAfterSeconds) {
@@ -147,6 +176,7 @@ function slot(name, capability, nowMs, staleAfterSeconds) {
   }
 
   var fresh = freshness(capability.as_of, nowMs, staleAfterSeconds);
+  var trusted = trust(originOf(capability));
 
   return {
     name: name,
@@ -160,6 +190,11 @@ function slot(name, capability, nowMs, staleAfterSeconds) {
     action: action,
     ageSeconds: fresh.ageSeconds,
     stale: fresh.known ? fresh.stale : null,
+    // Never null: a consumer that forgets to check gets a qualifier rather
+    // than silence, which is the safe direction.
+    origin: originOf(capability),
+    qualifier: trusted.qualifier,
+    real: trusted.real,
   };
 }
 
