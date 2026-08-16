@@ -40,7 +40,8 @@ INTERPRETER = sys.executable
 HOST_MAC = "AA:BB:CC:DD:EE:FF"
 HOST_IP = "[ip redacted]"
 
-STATUSES = {"not_installed", "no_answer", "nothing_present", "not_probed", "ready"}
+STATUSES = {"not_installed", "no_answer", "nothing_present", "not_probed",
+            "blocked", "ready"}
 # as_of is per capability, not per document: a consumer caches one capability
 # at a time, so a single document-level stamp would age them all together.
 CAPABILITY_KEYS = {"available", "status", "reason", "provider", "state", "as_of"}
@@ -64,8 +65,13 @@ case "$2" in
   *) exit 1 ;;
 esac
 """,
+    # --version is read-only and never touches the adapter, which is why the
+    # status command is allowed to ask it. Answering 5.88 by default keeps the
+    # transfer tests on the path they are about; the blocked path has its own
+    # stubs below.
     "bluetoothctl": f"""#!/bin/sh
 case "$1 $2" in
+  "--version "*|"--version") echo "bluetoothctl: 5.88" ;;
   "devices Paired") echo "Device {HOST_MAC} Pixel Buds Pro 2" ;;
   "devices "*)      ;;
   *) echo "STUB REFUSED: bluetoothctl $*" >&2; exit 90 ;;
@@ -75,6 +81,34 @@ esac
 exit 1
 """,
 }
+
+# Where a distribution puts the daemon. The safety gate stats the binary and
+# compares it against the running process, so "the installed BlueZ is current"
+# cannot even be expressed on a machine that has no bluetoothd on disk.
+BLUETOOTHD_PATHS = (
+    "/usr/lib/bluetooth/bluetoothd",
+    "/usr/libexec/bluetooth/bluetoothd",
+)
+
+
+def pgrep_stub(*running: str) -> str:
+    """A pgrep that finds exactly the named processes.
+
+    It reports this test process's own pid, which is what makes the
+    stale-daemon check answerable: /proc/<our pid> was created seconds ago, so
+    the running daemon cannot predate a binary installed at any point in the
+    past. Nothing is started and nothing real is inspected beyond our own
+    /proc entry.
+    """
+    import os
+
+    arms = "\n".join(f'  {name}) echo {os.getpid()} ;;' for name in running)
+    return f"""#!/bin/sh
+case "$2" in
+{arms}
+  *) exit 1 ;;
+esac
+"""
 
 
 class StatusContract(unittest.TestCase):
@@ -352,7 +386,8 @@ class StatusContract(unittest.TestCase):
         return {**self.LISTENING, **self.PAIRED_AND_REACHABLE, "pbpctrl": "#!/bin/sh\n"}
 
     def test_installed_but_not_running_is_no_answer(self):
-        data, _ = self.json_status(stubs={"rquickshare": "#!/bin/sh\n"})
+        stubs = {"rquickshare": "#!/bin/sh\n", "pgrep": pgrep_stub("bluetoothd")}
+        data, _ = self.json_status(stubs=stubs)
         transfer = data["capabilities"]["file-transfer"]
         self.assertEqual(transfer["status"], "no_answer")
         self.assertIn("not running", transfer["reason"])
@@ -362,11 +397,20 @@ class StatusContract(unittest.TestCase):
     # socket, so "installed + alive + listening" needs all three stubs.
     LISTENING = {
         "rquickshare": "#!/bin/sh\n",
-        "pgrep": "#!/bin/sh\nexit 0\n",
+        "pgrep": pgrep_stub("rquickshare", "bluetoothd"),
         "ss": '#!/bin/sh\necho \'LISTEN 0 128 *:35475 *:* users:(("rquickshare",pid=1,fd=9))\'\n',
     }
 
+    def require_expressible_safety(self):
+        """These paths only exist on a machine that has bluetoothd on disk."""
+        import os
+
+        if not any(os.path.exists(p) for p in BLUETOOTHD_PATHS):
+            self.skipTest("no bluetoothd binary here: 'safe to start' is not "
+                          "expressible, and the command blocks by design")
+
     def test_running_transfer_is_ready(self):
+        self.require_expressible_safety()
         data, _ = self.json_status(stubs=self.LISTENING)
         transfer = data["capabilities"]["file-transfer"]
         self.assertEqual(transfer["status"], "ready")
@@ -396,13 +440,71 @@ class StatusContract(unittest.TestCase):
         self.assertEqual(peers["kind"], "unavailable")
         self.assertTrue(peers["reason"])
 
+    def test_a_bluez_with_the_bug_blocks_instead_of_advising(self):
+        """The status a status command exists for.
+
+        BlueZ 5.87 crashes bluetoothd when a discovery filter meets a matching
+        advertisement, which takes the user's Bluetooth mouse down with it. A
+        bar widget that said "not running — start it" would be advising the
+        action that breaks the machine. `blocked` is the answer, and the reason
+        has to name what would happen and what fixes it.
+        """
+        stubs = {**self.LISTENING,
+                 "bluetoothctl": '#!/bin/sh\n[ "$1" = "--version" ] && '
+                                 'echo "bluetoothctl: 5.87"\n'}
+        data, _ = self.json_status(stubs=stubs)
+        transfer = data["capabilities"]["file-transfer"]
+        self.assertEqual(transfer["status"], "blocked")
+        self.assertFalse(transfer["available"])
+        self.assertIn("5.87", transfer["reason"])
+        self.assertIn("5.88", transfer["state"]["unblocked_by"])
+
+    def test_an_undeterminable_bluez_blocks_and_says_so_honestly(self):
+        """Unknown is unsafe, and the reason must not invent a defect.
+
+        On a machine with neither bluetoothctl nor pacman, "the installed bluez
+        crashes bluetoothd" would simply be false. Blocking is right; asserting
+        a cause nobody checked is the project's oldest rule broken.
+        """
+        stubs = {**self.LISTENING,
+                 "bluetoothctl": "#!/bin/sh\nexit 1\n",
+                 "pacman": "#!/bin/sh\nexit 1\n"}
+        data, _ = self.json_status(stubs=stubs)
+        transfer = data["capabilities"]["file-transfer"]
+        self.assertEqual(transfer["status"], "blocked")
+        self.assertIn("could not be determined", transfer["reason"])
+        self.assertNotIn("has the bug", transfer["reason"])
+
+    def test_a_live_daemon_older_than_the_fixed_binary_still_blocks(self):
+        """The version on disk is the name; the daemon in memory is the thing.
+
+        5.88 ships, the user upgrades, nothing restarts bluetoothd, and the
+        live process is still the 5.87 that crashes. Expressed here by pointing
+        pgrep at pid 1, which started at boot and therefore predates any later
+        upgrade of the binary. Skipped where that ordering does not hold, since
+        then the test would assert nothing.
+        """
+        import os
+
+        self.require_expressible_safety()
+        binary = next(p for p in BLUETOOTHD_PATHS if os.path.exists(p))
+        if os.stat("/proc/1").st_mtime >= os.stat(binary).st_mtime:
+            self.skipTest("pid 1 is newer than the bluetoothd binary here")
+
+        stubs = {**self.LISTENING, "pgrep": "#!/bin/sh\necho 1\n"}
+        data, _ = self.json_status(stubs=stubs)
+        transfer = data["capabilities"]["file-transfer"]
+        self.assertEqual(transfer["status"], "blocked")
+        self.assertIn("restart", transfer["reason"])
+
     def test_alive_but_not_listening_is_not_ready(self):
+        self.require_expressible_safety()
         """The tool reporting on itself is not evidence; the effect is.
 
         Same rule the doctor is being built on: four subsystems on this machine
         have now said one thing and done another.
         """
-        stubs = {"rquickshare": "#!/bin/sh\n", "pgrep": "#!/bin/sh\nexit 0\n",
+        stubs = {**self.LISTENING,
                  "ss": "#!/bin/sh\necho 'LISTEN 0 128 *:22 *:* users:((\"sshd\",pid=1,fd=3))'\n"}
         data, _ = self.json_status(stubs=stubs)
         transfer = data["capabilities"]["file-transfer"]
@@ -410,8 +512,7 @@ class StatusContract(unittest.TestCase):
         self.assertIn("not listening", transfer["reason"])
 
     def test_socket_check_failing_is_distinguished_from_not_listening(self):
-        stubs = {"rquickshare": "#!/bin/sh\n", "pgrep": "#!/bin/sh\nexit 0\n",
-                 "ss": "#!/bin/sh\nexit 1\n"}
+        stubs = {**self.LISTENING, "ss": "#!/bin/sh\nexit 1\n"}
         data, _ = self.json_status(stubs=stubs)
         transfer = data["capabilities"]["file-transfer"]
         self.assertEqual(transfer["status"], "no_answer")
@@ -494,6 +595,77 @@ class StatusContract(unittest.TestCase):
         result, invocations = self.run_status("--help")
         self.assertEqual(result.returncode, 0)
         self.assertEqual(invocations, [], f"--help ran commands: {invocations}")
+
+
+class TheStaleDaemonCheck(unittest.TestCase):
+    """The comparison behind the third blocked case, tested in isolation.
+
+    End to end this needs a machine where bluetoothd started *before* the
+    binary on disk was written, and this one booted after its last bluez
+    upgrade — so the whole-pipeline version of the test skips here honestly
+    rather than pretending. Backend could not express it either without
+    touching the mtime of a system binary, which neither of us is going to do.
+
+    So the comparison is exercised directly, with os.stat replaced for the two
+    paths it looks at. It proves the logic, not the plumbing, and it says so.
+    """
+
+    def load_status(self):
+        import importlib.machinery
+        import importlib.util
+        import sys
+
+        # The file has no .py suffix, so spec_from_file_location cannot guess a
+        # loader and returns None. Name the loader explicitly.
+        loader = importlib.machinery.SourceFileLoader("omapixel_status", str(STATUS))
+        spec = importlib.util.spec_from_loader(loader.name, loader)
+        module = importlib.util.module_from_spec(spec)
+        previously = sys.dont_write_bytecode
+        sys.dont_write_bytecode = True
+        try:
+            spec.loader.exec_module(module)
+        finally:
+            sys.dont_write_bytecode = previously
+        return module
+
+    def verdict(self, daemon_started: float, binary_written: float):
+        """Run the check with those two timestamps and nothing else changed."""
+        import os
+        from types import SimpleNamespace
+
+        module = self.load_status()
+        real_stat = os.stat
+
+        def fake_stat(path, *args, **kwargs):
+            text = str(path)
+            if text.startswith("/proc/"):
+                return SimpleNamespace(st_mtime=daemon_started)
+            if text.endswith("bluetoothd"):
+                return SimpleNamespace(st_mtime=binary_written)
+            return real_stat(path, *args, **kwargs)
+
+        module.run = lambda cmd, timeout=5: (0, "4242")  # pgrep finds a daemon
+        module.os.stat = fake_stat
+        try:
+            return module.running_daemon_predates_binary()
+        finally:
+            module.os.stat = real_stat
+
+    def test_a_daemon_older_than_the_binary_is_stale(self):
+        """5.88 ships, nobody restarts bluetoothd, the live process still crashes.
+
+        This is the scenario that will actually happen, and the moment the bar
+        would start advising the action that kills the mouse.
+        """
+        self.assertIs(self.verdict(daemon_started=100.0, binary_written=200.0), True)
+
+    def test_a_daemon_newer_than_the_binary_is_current(self):
+        self.assertIs(self.verdict(daemon_started=200.0, binary_written=100.0), False)
+
+    def test_no_running_daemon_is_unknown_rather_than_safe(self):
+        module = self.load_status()
+        module.run = lambda cmd, timeout=5: (1, "")
+        self.assertIsNone(module.running_daemon_predates_binary())
 
 
 class StatusScriptHygiene(unittest.TestCase):
