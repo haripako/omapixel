@@ -102,17 +102,33 @@ function freshness(asOf, nowMs, staleAfterSeconds) {
 // indistinguishable until the contract split them. The widget has to say which.
 function phoneSummary(capability) {
   var st = (capability && capability.state) || {};
-  var paired = Array.isArray(st.devices) ? st.devices.length : 0;
-  if (paired > 0 && st.reachable === false) {
-    // Its own tone. Found by rendering it: with status ready and a fresh
-    // stamp, an out-of-range phone was being drawn as "normal" because only
-    // the summary and the action were overridden. A degraded state that looks
-    // healthy is the exact failure this widget exists to avoid.
-    return { summary: "out of range", action: "wake", tone: "empty", paired: paired };
-  }
-  return null;
-}
+  var paired = Array.isArray(st.devices) ? st.devices : [];
+  if (paired.length === 0) return null;
 
+  // `reachable` is a list of the device ids that answered, not a boolean. It
+  // was a boolean when this was first written and the shape changed under it,
+  // which silently killed the out-of-range case: `=== false` simply never
+  // matched a list. Handled both ways now, and unknown stays unknown rather
+  // than being read as reachable.
+  var reachable;
+  if (Array.isArray(st.reachable)) {
+    reachable = paired.filter(function (id) { return st.reachable.indexOf(id) !== -1; });
+  } else if (st.reachable === true) {
+    reachable = paired;
+  } else if (st.reachable === false) {
+    reachable = [];
+  } else {
+    return null;  // no reachability information: say nothing rather than guess
+  }
+
+  if (reachable.length > 0) return null;
+
+  // Paired and none of them answering. Two different fixes -- wake the phone,
+  // or pair one -- and they were indistinguishable until the contract split
+  // them, so the widget has to say which.
+  return { summary: "out of range", action: "wake", tone: "empty",
+           paired: paired.length };
+}
 
 // --- origin -------------------------------------------------------------------
 
