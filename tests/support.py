@@ -89,6 +89,15 @@ def temp_data(capabilities: str, devices: dict[str, str] | None = None):
             module.OUTPUT, module.ROOT = saved[2], saved[3]
 
 
+# The last line of every report. A truncated TOML file is still valid TOML —
+# the structure is flat, so cutting it does not break the parse — and it loads
+# with fewer [[result]] blocks than its author measured. Those rows then read
+# `untested`, which the matrix defines as "nobody has tried it on that
+# hardware": a claim fabricated against somebody who did try it and took the
+# trouble to send it in. The marker is what makes the truncation visible.
+END_MARKER_LINE = "# *— end of report —*"
+
+
 # A capability file that is valid and boring, for tests about something else.
 MINIMAL_CAPABILITIES = """
 schema = 1
@@ -125,6 +134,7 @@ vendor = "Google"
 model = "Pixel 7 Pro"
 os = "Android 17"
 {results}
+{END_MARKER_LINE}
 """
 
 
