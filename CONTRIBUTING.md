@@ -20,11 +20,15 @@ guessed at.
 
 ## Reporting hardware
 
-1. Run the report generator. It installs nothing:
+1. Get the repository and run the report generator. It installs nothing:
 
    ```bash
+   git clone https://github.com/haripako/omapixel.git
+   cd omapixel
    scripts/hw-report.sh --markdown
    ```
+
+   The generator is a `bash` script and calls no interpreter of its own.
 
    It redacts MAC addresses written in the usual forms — `aa:bb:cc:dd:ee:ff` and
    `aa-bb-cc-dd-ee-ff` — along with host IPv4 and IPv6 addresses, and prints

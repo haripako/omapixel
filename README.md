@@ -11,10 +11,13 @@ exists and works, measure where it fails, and write only the missing pieces** �
 above all the Omarchy layer (bar widgets, keybindings, menu), which is where
 nobody has done the work.
 
-> **Status: early.** Nothing is installed yet on the reference machine, and no
-> capability has been measured on any device. The [capability
-> matrix](docs/02-capability-matrix.md) is honest about that: almost everything
-> reads `untested`, because it is.
+> **Status: early.** Two different things are true at once, and keeping them
+> apart is the point of this repository. The reference machine has been measured
+> in detail — its adapter, its network, whether the phone is actually reachable —
+> and that lives in [docs/04-reference-setup.md](docs/04-reference-setup.md).
+> But **no capability has been measured on any device yet**: every row of the
+> [capability matrix](docs/02-capability-matrix.md) still reads `untested`,
+> because it is. A measured host is not a measured capability.
 
 ## The one rule
 
@@ -40,8 +43,8 @@ repeated. See [conventions](docs/conventions.md).
 
 ## Scripts
 
-Neither of these installs anything. `hw-report.sh` prints the exact commands and
-stops; running them is your decision.
+**None of these install anything.** `hw-report.sh` prints the exact commands it
+would need and stops; running them is your decision.
 
 ```bash
 scripts/hw-report.sh              # check this machine
@@ -65,8 +68,18 @@ this repository; everything said about a Pixel 9, first-generation Buds Pro,
 Buds A-Series or a different Bluetooth adapter is guesswork until somebody
 reports it.
 
-Run `scripts/hw-report.sh --markdown`, open a **Hardware report** issue, paste.
-That is the whole ask. Details in [CONTRIBUTING.md](CONTRIBUTING.md).
+```bash
+git clone https://github.com/haripako/omapixel.git
+cd omapixel
+scripts/hw-report.sh --markdown
+```
+
+Then open a **Hardware report** issue and paste the output. That is the whole
+ask. Details in [CONTRIBUTING.md](CONTRIBUTING.md).
+
+The generator needs `bash`; regenerating the matrix additionally needs
+`python3`. Both ship with Omarchy, but this repository is meant to be useful
+from other setups too, so it is worth saying.
 
 ## Licence
 
@@ -107,8 +120,26 @@ hardware que aquí no tenemos. Empieza por
 
 Lo más útil que puedes aportar es **una medida hecha sobre hardware que aquí no
 hay**: unos Buds Pro de primera generación, un Pixel de otra gama, otro
-adaptador Bluetooth. Ejecuta `scripts/hw-report.sh --markdown`, abre una issue de
-tipo *Hardware report* y pega el bloque. Ya está.
+adaptador Bluetooth.
+
+```bash
+git clone https://github.com/haripako/omapixel.git
+cd omapixel
+scripts/hw-report.sh --markdown   # bloque para pegar en una issue (redacta MAC e IP)
+```
+
+Abre una issue de tipo *Hardware report* y pega la salida. Ya está. No instala
+nada: imprime las órdenes que harían falta y para ahí.
+
+Los demás guiones, por si te sirven:
+
+```bash
+scripts/hw-report.sh              # estado de esta máquina — ojo, la salida por
+                                  # defecto lleva tu MAC y tus IP sin redactar
+scripts/omapixel-status --json    # qué funciona ahora mismo, legible por máquina
+scripts/build-matrix.py           # regenera la matriz de capacidades desde data/
+scripts/run-tests.sh              # la suite; solo biblioteca estándar
+```
 
 Las issues en español son bienvenidas: nadie debería quedarse fuera de reportar
 un aparato por el idioma.
