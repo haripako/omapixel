@@ -257,6 +257,60 @@ believe. Until peer discovery exists it carries the same `unavailable` shape as
 everything else, with a reason. Same argument as the battery: empty and unknown
 must not look alike.
 
+**When it does exist, every entry carries its own `origin`** — `device`,
+`emulator` or `unknown`, the same closed vocabulary and the same rule as on a
+device report, with absent reading as `unknown` and never as `device`.
+
+Per entry, not per capability, and that distinction is the whole point. An
+`origin` on `file-transfer` as a whole would say the capability came from the
+emulator; it could not say *which of the three peers* is the emulator, and the
+list is going to mix a real Pixel with our virtual one in the same view. The
+consequence is not hypothetical: somebody will paste a screenshot of a working
+transfer into an issue, and if the simulated peer draws the same as a Pixel,
+that image becomes evidence of something nobody measured.
+
+```json
+"peers": [
+  {"name": "Pixel 7 Pro",              "origin": "device"},
+  {"name": "Virtual Pixel (simulated)", "origin": "emulator"}
+]
+```
+
+Requested by the desktop layer on 2026-08-16, agreed before either side is
+written, which is the rule this contract exists to enforce. Nothing implements
+it yet — `peers` is still `unavailable` — so it costs nothing now and would
+cost a retrofit across every consumer later.
+
+### An active transfer, and how one ends
+
+Also agreed in advance, also unimplemented. A transfer in flight is a value
+with provenance, and a finished one is a value that has to name **which side**
+decided:
+
+| Field | Meaning |
+|---|---|
+| `direction` | `send` or `receive` |
+| `peer` | the display name, plus its `origin` as above |
+| `bytes`, `total` | `total` may be `unavailable` with a reason — a sender that never declared a size is not a zero-byte file |
+| `outcome` | `completed`, `rejected`, `failed`, `timeout` — absent while in flight |
+| `side` | on `rejected`, `failed` and `timeout`: `local` or `remote` |
+
+**`rejected` is not `failed`.** The other end said no, which is a decision and
+must not be painted as an error. `timeout` says how long was waited, because
+that is what replaces an indefinite spinner. And `side` exists because "the
+transfer failed" is the sentence a user cannot act on: their end giving up and
+the phone refusing have different fixes.
+
+### The earbuds fields, and why they are specified before the hardware exists
+
+`anc.modes` — the modes this particular model supports, so a UI offers what
+exists rather than a fixed three — and `charging`, are specified now and will
+read `unavailable` with a reason until Pixel Buds Pro 2 arrive and `pbpctrl`
+is measured against them. Writing them down early is not optimism: it is so
+that a design drawn against this contract degrades to "unknown" instead of
+inventing a control that may never have anything behind it. Same reason
+`battery.source` exists.
+
 **The transfer port is deliberately absent**, and will stay absent.
 `rquickshare` picks a different TCP port on every launch — measured as 35475,
 then 34261 after a restart. It is not a stable fact about the machine, a
