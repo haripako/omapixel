@@ -168,6 +168,46 @@ def load_capabilities() -> list[dict]:
 # names the fix.
 ORIGINS = ("device", "emulator", "unknown")
 
+# A truncated report is worse here than anywhere else, because nothing about it
+# looks wrong. Markdown cut in half deceives a person; TOML cut in half is still
+# valid TOML — the structure is flat, so losing the tail breaks nothing — and it
+# deceives the parser instead. It loads, with fewer [[result]] blocks than its
+# author measured, and the matrix renders those rows as `untested`.
+#
+# The matrix says in its own header that "an absent result means nobody has run
+# it on that hardware". So a truncated report silently manufactures that claim
+# against somebody who did run it and took the trouble to send it in. Same asset
+# the markdown injection attacked — the traceability of the matrix — reached by
+# accident instead of malice, and with nobody ever noticing.
+#
+# hw-report.sh ends every mode with this line, which turns a hint for a human
+# into an invariant a machine checks. Two ways to get the check wrong, failing
+# in opposite directions, both verified:
+#
+#   - Not the parsed dict. In --toml the marker is a comment and tomllib drops
+#     comments, so a check over the loaded data finds nothing and would call
+#     every report truncated.
+#   - Not a grep over the whole text. The --markdown header quotes the marker
+#     in order to announce it, so that mode contains it twice and a report cut
+#     off after the header would pass. The last non-blank line is the check.
+#
+# Blank lines are filtered because a report ending in a newline is complete, and
+# rejecting it would be the other failure: too strict, aimed at the contributor
+# who cannot tell why an honest report was refused.
+END_MARKER = "end of report"
+
+
+def require_end_marker(path: Path) -> None:
+    lines = [ln.strip() for ln in path.read_text().splitlines() if ln.strip()]
+    if not lines or END_MARKER not in lines[-1]:
+        raise ReportError(
+            f"{path.name}: does not end with the end-of-report marker, so it "
+            f"may have been truncated. A cut-off report is still valid TOML, "
+            f"and would quietly read as 'nobody tested this'. Add this as the "
+            f"last line, or re-run scripts/hw-report.sh --toml:\n"
+            f"    # *— {END_MARKER} —*"
+        )
+
 
 def validated_origin(data: dict, path: Path) -> str:
     origin = data.get("origin")
@@ -191,6 +231,7 @@ def load_reports(known_ids: set[str]) -> list[dict]:
 
     reports = []
     for path in sorted(DEVICES.glob("*.toml")):
+        require_end_marker(path)
         data = load(path)
 
         report = {
