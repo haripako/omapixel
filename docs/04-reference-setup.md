@@ -121,9 +121,60 @@ fifteen seconds. That gap is the input stall.
 
 Crash signature: `segfault at 55f8f18e0f40 ip 000055f8f18e0f40`. The instruction
 pointer equals the faulting address, meaning execution was transferred there.
-**Inference, not yet confirmed:** that is the shape of a call through a corrupted
-or freed function pointer. Confirming it needs the backtrace, and the core dumps
-are root-owned (`coredumpctl` lists them as inaccessible without privileges).
+
+**Confirmed on 2026-08-16 by symbolizing all three core dumps.** The inference
+above was right, and the backtrace says where. Identical in all three, with only
+the ASLR base differing:
+
+```
+gdb -batch -q -iex 'set debuginfod enabled on' -iex 'set confirm off' \
+    -ex 'set pagination off' -ex 'bt' \
+    /usr/lib/bluetooth/bluetoothd core-1088.dump
+```
+
+```
+#0  0x0000560c724cebf0 in ?? ()
+#1  queue_find (queue=…, function=0x560c724cebf0, match_data=…)  src/shared/queue.c:230
+#2  is_filter_match (discovery_filter=…, eir_data=…, rssi=-81)   src/adapter.c:7218
+#3  btd_adapter_device_found (…, bdaddr_type=1, rssi=-81, …)     src/adapter.c:7437
+#4  device_found_callback (index=0, …)                           src/adapter.c:7602
+#5  queue_foreach (…, function=notify_handler, …)                src/shared/queue.c:207
+#7  process_notify (mgmt=…, event=…, …)                          src/shared/mgmt.c:363
+#8  can_read_data (io=…, user_data=…)                            src/shared/mgmt.c:423
+#9  watch_callback (…)                                           src/shared/io-glib.c:173
+```
+
+Line 230 of `queue.c` is `if (function(entry->data, match_data))`, and
+`function` holds `0x560c724cebf0` — an address in the heap, not in the mapped
+text of the binary, which starts around `0x560c4c2…`. So `queue_find` is handed
+a data pointer where a function pointer belongs and calls it. That is the
+corrupted-function-pointer shape, now measured rather than inferred.
+
+The call site is `adapter.c:7218`, `queue_find(eir_data->services, …)`, reached
+while matching a received advertisement against the discovery filters
+registered by D-Bus clients. Locals at that frame: `item = 0x560c724d1cc0`,
+`l = 0x560c72486a50 = {0x560c724d2870, 0x560c7247fe80}`.
+
+**What this establishes, and what it does not.**
+
+*Measured:* the fault is in BlueZ, in the LE discovery path. All three crashes
+happen processing an mgmt **Device Found** event with `bdaddr_type=1` — an LE
+address — carrying a real advertisement (RSSI -81, -79, -74; the third dump's
+payload is legible and belongs to a passing `Oclean X` toothbrush). `rquickshare`
+appears nowhere in the stack; it is a separate process. It is the **trigger**,
+because it turns on LE discovery with filters, not the thing that crashes.
+
+*Not measured:* the root cause. Why the filter list holds a bad pointer — a
+use-after-free on a client's discovery filter, a type confusion, or something
+else — does not follow from the backtrace, and three identical stacks do not
+distinguish those.
+
+*Derived, and the reason this matters beyond F1:* if any other tool that brings
+up LE discovery reaches the same code, it will crash `bluetoothd` the same way,
+because nothing here is specific to `rquickshare`. That would put the defect
+underneath the whole Bluetooth half rather than inside F1. It stays derived
+until a second LE tool is measured against it — `pbpctrl` using BLE comes from
+its README, not from a terminal here.
 
 **The crash has two outcomes, not one.** The first two times, systemd restarted
 `bluetoothd` and the mouse re-attached after about fifteen seconds. The third
@@ -151,18 +202,49 @@ faster is actively counterproductive:
 bluetoothctl disconnect [mac redacted]; sleep 15; bluetoothctl connect [mac redacted]
 ```
 
+**That recovery is for a crash, and it does not cover a blocked radio. Measured
+2026-08-16.** After `rfkill block bluetooth`, unblocking and following the
+sequence above did not bring the mouse back: `unblock` reported `Soft blocked:
+no`, the first connect returned `le-connection-abort-by-local`, and two further
+attempts — one after a genuine fifteen-second pause, one after a `power off` /
+`power on` cycle — both timed out at thirty seconds. `bluetoothctl info` showed
+`Paired: yes, Trusted: yes, Connected: no` and `/dev/input/by-id/` had no mouse
+node. `bluetoothd` was healthy throughout and no new segfault was recorded.
+
+Nothing was broken: a Bluetooth mouse that loses its link waits to re-advertise
+until it is moved or a button is pressed, and no software on this side can do
+that. **So blocking the radio needs somebody physically at the machine**, which
+the written recovery above quietly assumed and did not say. It was written from
+the crash case, where the device is still awake and re-announces on its own.
+
+Worth knowing before assuming the machine keeps a pointer: the Logitech
+Unifying receiver present here has the **MX Keys keyboard** paired to it, not a
+mouse — `0003:046D:408A` under the receiver, and the `…Receiver-if02-event-mouse`
+node exists whether or not a mouse is paired, because the dongle exposes it
+either way. The only mouse on this machine is the MX Master over Bluetooth.
+
 This is a `doctor` check and a `doctor` remedy, and it is the kind of thing that
 only shows up by breaking a real machine.
 
-Two things this does not yet tell us, and both matter:
+Two things this did not tell us. **The first is now answered by the backtrace
+above; the second is not.**
 
-- **Whether the bug is rquickshare-specific or lives in BlueZ's advertising
-  path.** If plain BLE advertising crashes `bluetoothd` too, this is a BlueZ
-  5.87 bug worth reporting upstream rather than an integration quirk.
-- **Whether it threatens F3.** `pbpctrl` also talks to the earbuds over BLE on
-  this same adapter and BlueZ version. If the crash is in the BLE path rather
-  than in anything Quick Share does, the entire Bluetooth half of this project
-  sits on top of it.
+- ~~**Whether the bug is rquickshare-specific or lives in BlueZ.**~~ **Answered
+  2026-08-16: it lives in BlueZ**, and `rquickshare` is the trigger rather than
+  the culprit — it appears nowhere in the stack. Worth reporting upstream as a
+  BlueZ 5.87 defect. One correction to how this question was posed: the crash is
+  in the **discovery** path, not the advertising path. It happens while
+  processing an advertisement *received* from some other device, matching it
+  against registered discovery filters, not while emitting one. That matters for
+  reproducing it, because the second device involved is whatever happens to be
+  advertising nearby — in the third dump, a passing toothbrush.
+- **Whether it threatens F3.** Still open, and now the more valuable of the two.
+  `pbpctrl` also talks to the earbuds over BLE on this same adapter and BlueZ
+  version. Since the crash is in code that runs for any client that starts LE
+  discovery, and nothing in the stack is specific to Quick Share, the whole
+  Bluetooth half of this project may sit on top of it. **That remains derived**:
+  it needs a second LE tool measured against this adapter, and that `pbpctrl`
+  uses BLE comes from its README rather than from a terminal here.
 
 ## The adapter can do LE Audio and Auracast, on paper
 
