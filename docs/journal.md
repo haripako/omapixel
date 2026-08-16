@@ -44,6 +44,46 @@ entry that says what was wrong and what replaced it.
 
 ---
 
+## 2026-08-16
+
+**measured, in a clean VM** — Omarchy 4.0.0 from the official 14 August ISO,
+kernel 7.1.8. `scripts/hw-report.sh` **hung forever** on a machine where
+`bluetooth.service` is inactive: no `timeout` around `bluetoothctl` anywhere in
+the script, and stderr discarded. This is the first finding produced by running
+the project as an outsider would, on a machine that is not the reference
+machine, and it is exactly the class the reference machine cannot show — here
+the service has always been running.
+
+Fixed, and **verified by the same person against the published version rather
+than against a local branch**: it exits 0, warnings appear in the header, there
+is an end marker, and it reports `google paired unknown (bluetooth service not
+running)`.
+
+**decision — three defences that are easy to confuse for one** — A `timeout`
+stops the hang. Warnings moved to the **header** because **a footer never prints
+if the program dies**. An end marker so that a truncated report cannot be
+mistaken for a complete one. Each covers a different failure, and having one is
+not having the others.
+
+**correction, by its own author** — A missing `git clone` line in the
+instructions was reported as a blocker. **It is a gap, not a blocker**: the
+repository is public and GitHub offers the *Code* button. It only stops somebody
+who never arrives via the web. Recorded because downgrading your own finding is
+rarer than making one.
+
+**measured, and it corrects an assumption behind a whole night's planning** —
+`rfkill` does **not** need root on this machine: `/dev/rfkill` carries an ACL
+granting the user read-write, verified with `getfacl`. Neither does
+`virsh -c qemu:///system`. What does need root is `sudo` itself, which is why
+the core dumps are still blocked and nothing else is.
+
+**decision by the maintainer** — Two shifts, day in reserve and night open;
+coordination as sole executor while working remotely; and the Bluetooth mouse
+deliberately ignored rather than protected.
+
+> A handful of 16 August measurements were written into the section below while
+> the day was still being handed over. They are dated in their own text.
+
 ## 2026-08-15
 
 The whole project so far. Founded, opened up, and taken through F0 and half of
@@ -267,6 +307,86 @@ because it is a clean specimen of the failure mode this whole project is
 arranged against: **a specification number smuggled in as a fact about this
 machine.**
 
+**measured, reproduced independently, and landed where it belongs** — `btmgmt
+info` run again by a second person, with two further flags beyond those first
+reported: `past-sender` and `past-receiver`. Now recorded in [reference
+setup](04-reference-setup.md) rather than in a derived document.
+
+**derived** — `version 12` (`0x0C`) corresponds to Bluetooth 5.3, and `0x0B` to
+5.2, per the Bluetooth SIG's *Assigned Numbers*, in the Core Specification
+version section that defines the HCI Version parameter. Consulted on the web on
+this date, at
+`https://www.bluetooth.com/wp-content/uploads/Files/Specification/HTML/Assigned_Numbers/out/en/index-en.html`.
+Marked derived on purpose: **the adapter reports a number; the meaning of that
+number comes from a document**, and the document was read on the web, not off
+this machine.
+
+One reservation travels with it, and it belongs here rather than in a footnote:
+**the revision of that document was not recorded.** The SIG republishes
+*Assigned Numbers* often — editions dated 5 Aug 2026, 31 Jul 2026, 4 Mar 2026
+and 13 Mar 2025 were all visible that day. This particular mapping has been
+stable for years and is very unlikely to move, but that is an argument, not a
+check. To be airtight the entry needs the revision.
+
+It refutes the datasheet's 5.2 either way, which was the point.
+
+**measured, and it makes the isolation test expensive** — At the moment of
+measurement, **two** devices were connected over Bluetooth on `hci0`, and the
+adapter was not blocked:
+
+```
+$ bluetoothctl devices Connected
+Device [mac redacted] MX Master 3S
+Device [mac redacted] Xbox Wireless Headset
+
+$ rfkill list bluetooth
+0: hci0: Bluetooth
+	Soft blocked: no
+	Hard blocked: no
+```
+
+Two, not one — the headset gets forgotten in this conversation and it drops as
+well.
+
+**What that establishes, exactly and no more:** the mouse's *active route at the
+time of the measurement* was Bluetooth over `hci0`, which is the adapter
+`rfkill block bluetooth` switches off. It does **not** establish that the mouse
+has no USB receiver of its own, nor that it could not reconnect another way.
+
+So `rfkill block bluetooth` costs the maintainer the pointer **and** the headset
+**before** `rquickshare` does anything: the price is paid by the first command of
+the test, not by the crash the test is trying to observe. Any instruction that
+says "just block Bluetooth first" should say so. This is also the argument for
+going at the core dumps first — they do not touch the desktop, and if they
+localise the fault the `rfkill` test may be unnecessary.
+
+Measured **on this machine**. An MX Master on another machine may well be on its
+own receiver.
+
+**open, security, deliberately recorded without the recipe** — A device report
+can inject arbitrary markdown into the generated capability matrix through a
+multi-line `notes` field, and `build-matrix.py --check` still reports green.
+That falsifies traceability, which is this repository's central asset: reports
+come from strangers, and the matrix is what everybody reads instead of the
+reports. Reproduced.
+
+A second vector, worse than the first, was found by widening it: a link, an
+image and HTML that **do not break the structure**, so they do not read as an
+anomaly. The worst place to put them is the reporter's own handle — **the field
+where the document asserts its traceability**.
+
+Closed by rejecting at load time, with an allow-list on the short fields and
+`[`, `]`, `<`, `>` kept out of `notes`, plus nine test cases with a negative
+control. Found as an unverified lead by review, reproduced and verified by
+security, widened by the person who owns the loader, tested by the person who
+owns the suite — four people, one commit.
+
+The fix and the commit describing the fault went up together, so the description
+was never public while pointing at a live vector. **Both are now in the
+published history** — verified with `git merge-base` against `origin/main`
+rather than taken on report — and the five vectors are rejected in the
+published version.
+
 **derived** (web, this date) — Auracast over LE Audio is viable on Linux in
 principle: BlueZ 5.85 has full BAP support and PipeWire 2.0 added broadcasting,
 with browsing and switching controls still work in progress. Needs a Bluetooth
@@ -318,6 +438,19 @@ detection, the test fails and forces the docstring to be corrected in the same
 commit. The general criterion, which applies well beyond this check: **a privacy
 invariant people trust more than it deserves is worse than a grep nobody
 trusts.**
+
+**correction — a risk three people had been repeating, and nobody had checked**
+— It was taken as read that Bluetooth device names were the likeliest leak in a
+published device report. **It does not hold.** The script counts rather than
+prints — `bluetoothctl devices Paired | grep -icE 'pixel|google'`, with `-c`, so
+a name never reaches the output — and the report template has **no field a
+device name could sit in**. There is no structured route in at all. What remains
+is the free prose of `notes`, typed by hand.
+
+Recorded because of how it happened rather than what it was: three people
+repeated a threat model that **none of them had checked against the schema**,
+and it was on its way into the record as established. Verified here by reading
+both files before writing this down.
 
 **decision** — The privacy rule for device reports is never softened to a
 warning, and never "fixed" by normalising `[ip redacted]/24` into
@@ -400,6 +533,83 @@ to say "one figure, combined" as a first-class answer.
 **decision** — Corrections to derived documents are made in place with a dated
 correction note, not by deleting the original. Reason: a derived document is
 dated evidence, and silently rewriting it makes the claim impossible to age.
+
+**measured — one defect wearing three faces, and they were being chased as
+three** — The construction: `ENV = {**os.environ, …}` captured **at module
+import** and passed as `env=` to `Popen`, while `shutil.which()` resolved
+against `os.environ`. **Two sources of truth for "which program is this", and
+which one wins depends on when the module was imported.**
+
+It produced three symptoms that looked unrelated:
+
+1. The virtual-Pixel emulator **published a real mDNS record on the local
+   network**: the environment-variable containment did not contain. The
+   announced name came from the hostname, which on this machine is `Hari` — a
+   person's name going out onto the LAN.
+2. A test asserting the advertisement declares itself simulated **failed only
+   inside the full suite**. That had been put down to ordering or a race and
+   circulated as such. **It was not a race, it had a cause:** the advertisement
+   resolved its binary through the captured environment, so the `PATH`
+   substitution never contained it and **the real `avahi-publish-service` ran**.
+   It only showed up in the suite because that test imports the emulator
+   in-process.
+3. A test harness whose containment contained nothing, and reported green.
+
+Fixes: the emulator binds `127.0.0.1` by default with an explicit `--lan`, and
+its announced name is a fixed constant never derived from the hostname; the test
+overrides the captured environment as well. **Evidence: three runs of the module
+and three of the full suite, six of six green afterwards — 184 tests, 8 expected
+failures.**
+
+**Verified here, and it corrects the report:** the same pattern was reported as
+still live in `scripts/omapixel-status`, which matters more than a harness
+because it runs on a user's machine. Reading the file, **it is already fixed** —
+the environment is built per call, and the docstring records why. The report was
+accurate when it was written and stale by the time it was registered.
+
+The rule that generalises it, and it is worth more than the fix: **replacing
+`PATH` contains a child process. It does not contain a module that captured its
+environment when it was imported.** Every test harness in this project rests on
+substituting `PATH`, so that sentence is the boundary of what any of them can
+promise. The two shapes, side by side:
+
+- **Sound** — substitute `PATH` and hand it to a child process as `env=`. The
+  child resolves with its own environment. The containment is real.
+- **Broken** — mutate the environment in-process and then import the code under
+  test. `which()` decides from one table and `Popen` runs from the other.
+
+One place in the whole suite had the broken shape, and it is closed. **What
+survives is the rule, not the list**: any new test that imports project code and
+then touches `PATH` is a candidate to repeat it.
+
+The lesson that outlives the bug, and it is about how it was chased: **"flaky"
+and "race" are labels that close an investigation instead of opening one.** They
+were applied and circulated before anybody had looked.
+
+For the catalogue of things whose own words mislead, this is a variant that was
+missing: **it was not a tool that lied and not a log — it was the moment the
+configuration was read.** A setting correct in the file and wrong in effect,
+depending on import order, is the same class of defect as a log that says
+`reloading` while reloading nothing.
+
+An independent verification that the **vector** is closed, and not merely the
+observed case, has been requested rather than assumed.
+
+**measured** — `omapixel-status --json` went from **2090 ms to 84 ms**, a factor
+of 25. Provenance, because the number is only worth what its method is: the
+original figure was measured five times with near-zero variance;
+`kdeconnect-cli --list-devices` accounted for **2008 ms of the 2090**,
+reproduced three times identically; and the cause was established as **a fixed
+2-second discovery cycle in the CLI, not a slow daemon**. Replacing it with a
+D-Bus call brings that part to **2 ms**. Committed locally, not pushed.
+
+**Missing, and not invented here:** the literal command behind the 84 ms figure.
+Requested from the person who measured it.
+
+**decision** — Caching and splitting the contract were both rejected, because
+each **hides** the wait rather than removing it. And `as_of` moves from agreed
+to implemented **per capability rather than per document**, recording when
+something was probed and never when it was rendered.
 
 **decision** — Never draw the state a subsystem reports about itself. Draw the
 observable effect. A widget that says "connected" because BlueZ says
