@@ -57,13 +57,18 @@ BarWidget {
   // at a glance rather than one grey blank. The mapping is here and not in
   // Model.js because it is the only genuinely visual decision.
   function glyphFor(tone) {
+    // Chosen by rendering them at bar size and looking, not from memory. The
+    // first set was picked blind and two of them were wrong: "everything is
+    // fine" was a QR code, and "unknown" was a glyph that reads as a tick —
+    // which would have drawn doubt as confirmation, the exact failure this
+    // widget exists to prevent.
     switch (tone) {
-      case "normal":  return "󰐳"
-      case "absent":  return "󰇘"
-      case "stalled": return "󰀦"
-      case "empty":   return "󰂲"
-      case "held":    return "󰋗"
-      default:        return "󰇿"
+      case "normal":  return "\uf012c"  // check: nothing to do
+      case "absent":  return "\uf01da"  // download: a package is missing
+      case "stalled": return "\uf0026"  // warning: it is there and not answering
+      case "empty":   return "\uf00b2"  // bluetooth off: nothing paired, or out of range
+      case "held":    return "\uf03e4"  // pause: deliberately not asked
+      default:        return "\uf02d7"  // question: we do not know, and say so
     }
   }
 
