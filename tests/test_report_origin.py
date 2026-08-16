@@ -122,6 +122,55 @@ class SimulatedResultsAreNotMeasurements(unittest.TestCase):
         """Unknown is not real. That is the rule the three values exist for."""
         self.assertNotEqual(self.cell("unknown"), "works 1")
 
+    def mixed_cell(self, *origins: str, status: str = "works") -> str:
+        """One capability, one report per origin. The case with two sources."""
+        files = {
+            f"{index}-{origin}.toml": report(
+                origin,
+                results=RESULT.replace('status = "works"', f'status = "{status}"')
+                if origin != "device" else RESULT,
+            )
+            for index, origin in enumerate(origins)
+        }
+        with temp_data(MINIMAL_CAPABILITIES, files) as (mod, _):
+            caps = mod.load_capabilities()
+            reports = mod.load_reports({cap["id"] for cap in caps})
+            return mod.summarise("file-send", reports)
+
+    def test_one_real_report_does_not_launder_the_emulator_ones(self):
+        """Two origins in one cell, which every other test here misses.
+
+        Found by code review on 2026-08-16 and reproduced: the qualifier is
+        decided once per cell, so a single report from real hardware clears it
+        and the emulator's results are then counted as if somebody had run them
+        on a phone. A capability reported `broken` on a device and `works` on
+        the emulator renders as `broken 1, works 1` — identical to two real
+        reports, which is the one thing this field exists to prevent.
+
+        Backend fixed it by qualifying per count (`works 1 (1 emulator)`). The
+        assertion here is the invariant rather than that wording: a mixed cell
+        must not be indistinguishable from an all-hardware one. Pinning the
+        exact string would decide a rendering that is not mine to decide, and
+        this test has to keep meaning something if the wording changes.
+        """
+        self.assertNotEqual(
+            self.mixed_cell("device", "emulator"),
+            self.mixed_cell("device", "device"),
+            "a cell mixing hardware and emulator results reads exactly like one "
+            "with two hardware results",
+        )
+
+    def test_a_mixed_cell_says_how_many_came_from_the_emulator(self):
+        """A reader needs the count, not just a warning that one exists.
+
+        With three reports and one emulator among them, "some of this is
+        simulated" leaves the reader unable to tell whether the evidence is
+        mostly real or mostly not.
+        """
+        cell = self.mixed_cell("device", "emulator", "emulator")
+        self.assertIn("emulator", cell)
+        self.assertIn("2", cell)
+
     def test_emulator_and_unknown_are_distinguishable_from_each_other(self):
         """Not only from a real measurement: from each other.
 

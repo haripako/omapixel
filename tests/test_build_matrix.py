@@ -202,8 +202,18 @@ class Summarise(unittest.TestCase):
         """A row that looks confident but nobody ran gets marked."""
         self.assertEqual(self.cell(("works", "derived")), "works 1 (derived)")
 
-    def test_one_measured_report_removes_the_flag(self):
+    def test_a_measured_report_does_not_erase_a_derived_one(self):
+        """The flag counts derived reports; it is not all-or-nothing.
+
+        It used to disappear as soon as one measured report existed, which
+        overstated the evidence: two reports, one of them somebody repeating a
+        README, is not the same as two people running it. The count says which.
+        """
         cell = self.cell(("works", "derived"), ("works", "measured"))
+        self.assertEqual(cell, "works 2 (1 derived)")
+
+    def test_the_flag_is_absent_when_everything_was_measured(self):
+        cell = self.cell(("works", "measured"), ("works", "measured"))
         self.assertEqual(cell, "works 2")
         self.assertNotIn("derived", cell)
 
