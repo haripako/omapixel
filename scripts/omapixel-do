@@ -1,0 +1,75 @@
+#!/usr/bin/env python3
+"""Perform one of the actions that omapixel-status advertises.
+
+  scripts/omapixel-status --json    what can be done, in `actions`
+  scripts/omapixel-do <action-id>   do it
+
+Separate from the status command on purpose. Reading and writing have
+different risks: a status call runs on a timer, in a bar, several times a
+minute, and must never change anything. Bundling `--do` into it would put a
+side effect one typo away from a poll loop, and this project already has a
+command that crashed a desktop because something read-looking touched a radio.
+
+Consumers never perform these themselves. Doing so means talking to the device,
+and that is what this side of the contract is for: a widget that reaches for
+D-Bus has reintroduced the coupling the contract exists to remove.
+
+Exit codes: 0 done, 1 the action failed and said why, 2 unknown action.
+"""
+
+from __future__ import annotations
+
+import subprocess
+import sys
+
+KDECONNECT = (
+    "busctl", "--user", "call", "org.kde.kdeconnect",
+    "/modules/kdeconnect", "org.kde.kdeconnect.daemon",
+)
+
+
+def retry_link() -> tuple[bool, str]:
+    """Ask KDE Connect to redo discovery.
+
+    Measured 2026-08-17: the link can sit at isReachable=false while still
+    paired, with the phone answering pings — the IP path fine and KDE Connect
+    simply not reconnecting. A user sees "disconnected" over a working network
+    with nothing to act on. This restores it in under twelve seconds, and
+    nobody finds the method on their own.
+    """
+    result = subprocess.run(
+        [*KDECONNECT, "forceOnNetworkChange"],
+        capture_output=True, text=True, check=False,
+    )
+    if result.returncode != 0:
+        return False, (result.stderr.strip()
+                       or "kdeconnect did not accept the request")
+    return True, "asked KDE Connect to rediscover; give it a few seconds"
+
+
+ACTIONS = {
+    "retry-link": retry_link,
+}
+
+
+def main(argv: list[str]) -> int:
+    if len(argv) != 1 or argv[0] in ("-h", "--help"):
+        print(__doc__.strip())
+        print("\nAvailable:", ", ".join(sorted(ACTIONS)))
+        return 2
+
+    name = argv[0]
+    if name not in ACTIONS:
+        # Names the ones that exist rather than just refusing: an unknown id is
+        # usually a consumer built against a newer or older contract.
+        print(f"unknown action {name!r}. Available: {', '.join(sorted(ACTIONS))}",
+              file=sys.stderr)
+        return 2
+
+    ok, message = ACTIONS[name]()
+    print(message, file=sys.stdout if ok else sys.stderr)
+    return 0 if ok else 1
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

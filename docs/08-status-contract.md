@@ -129,7 +129,47 @@ will draw them identically. Phone battery needs the age of the reading, focus
 sync needs to know which side changed last, and who owns the earbuds stops
 being true the moment the phone takes them.
 
-Get these three right and every future "this must look unknown" is satisfied by
+**4. An available action.** Added 2026-08-17, requested by the desktop layer
+before either side wrote it, and for the reason the other three exist: at least
+three are coming — retry the link, cycle ANC, send a file — and if each arrives
+as its own field we get `can_retry`, `anc_settable`, `send_available`, and the
+fourth case gets argued from scratch. That is the same mistake provenance
+already taught us three times.
+
+```json
+"actions": [
+  {"id": "retry-link", "label": "Reconnect", "available": true},
+  {"id": "cycle-anc",  "label": "Cycle ANC", "available": false,
+   "reason": "pbpctrl is not installed"}
+]
+```
+
+- `id` is a closed vocabulary, so a consumer can special-case an icon without
+  parsing English.
+- `label` is what to show. The consumer never composes this itself.
+- `available` says whether it can be done *now*; when false, `reason` says why,
+  same rule as everywhere else.
+- **An absent `actions` means there is nothing to do**, never "there is
+  something and we are not telling you".
+
+The point is that a widget draws a button when there is something to do and
+draws nothing when there is not, **without ever knowing which tool is
+underneath** — and ANC arrives the day the hardware does, with no change to any
+QML.
+
+**Consumers do not perform actions themselves.** Doing so means touching the
+device, and that lives on this side of the contract. An action is requested
+through the mechanism this contract exposes; a consumer that reaches for D-Bus
+directly has reintroduced exactly the coupling the whole file exists to remove.
+
+The first one is real rather than hypothetical. `phone-link` can drop to
+`isReachable=false` while still paired, with the phone answering pings — the IP
+path fine and KDE Connect simply not reconnecting, which a user sees as
+"disconnected" over a working network with no explanation. `forceOnNetworkChange`
+restores it in under twelve seconds, measured 2026-08-17. Nobody finds that on
+their own, and it is exactly the glue this project says it exists to write.
+
+Get these four right and every future "this must look unknown" is satisfied by
 construction, rather than by seven people remembering.
 
 ### Rejected is not failed
