@@ -102,10 +102,18 @@ tool = "rquickshare"
 """
 
 
-def device_report(results: str = "", *, kind: str = "phone") -> str:
-    """A valid device report, plus whatever [[result]] blocks a test needs."""
+def device_report(results: str = "", *, kind: str = "phone",
+                  origin: str = "device") -> str:
+    """A valid device report, plus whatever [[result]] blocks a test needs.
+
+    `origin` is mandatory in the schema since 2026-08-16 — a report must say
+    whether it came from hardware, from the emulator, or from something that
+    could not be determined. Fixtures declare "device" so that tests about
+    something else are not silently testing the origin rule.
+    """
     return f"""
 schema = 1
+origin = "{origin}"
 
 [reporter]
 handle = "tester"

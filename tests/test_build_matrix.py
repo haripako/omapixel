@@ -183,10 +183,14 @@ date = "2026-08-15"
 class Summarise(unittest.TestCase):
     """One matrix cell. The rules that decide what a reader sees."""
 
-    def cell(self, *results: tuple[str, str]) -> str:
+    def cell(self, *results: tuple[str, str], origin: str = "device") -> str:
         mod = load_build_matrix()
+        # origin is part of a loaded report since 2026-08-16, and summarise()
+        # reads it: a result from the emulator must not render as a measurement.
+        # These fixtures say "device" because they are about status and method.
         reports = [
-            {"results": [{"id": "file-send", "status": s, "method": m}]}
+            {"origin": origin,
+             "results": [{"id": "file-send", "status": s, "method": m}]}
             for s, m in results
         ]
         return mod.summarise("file-send", reports)

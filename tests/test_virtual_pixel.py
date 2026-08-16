@@ -308,10 +308,14 @@ class VirtualPeer(unittest.TestCase):
                          {line.split()[0] for line in invocations if line.strip()})
 
     def test_vanish_withdraws_the_advertisement(self):
-        _, lines, invocations = self.transfer("vanish")
+        """Only the state change is asserted, not the publisher.
+
+        On a loopback run there is no advertisement to withdraw, and forcing
+        --lan just to observe the withdrawal would trade a real network
+        listener for a log line.
+        """
+        _, lines, _ = self.transfer("vanish")
         self.assertTrue(any("vanishing" in line for line in lines))
-        self.assertIn("avahi-publish-service",
-                      {line.split()[0] for line in invocations if line.strip()})
 
     def test_an_unknown_mode_is_refused(self):
         result, _ = self.run_peer("--mode", "explode", "--once")
@@ -321,13 +325,113 @@ class VirtualPeer(unittest.TestCase):
     # --- the advertisement --------------------------------------------------
 
     def test_the_advertisement_declares_itself_simulated(self):
-        """Anything discovering this peer learns it is fake without being told."""
-        _, _, invocations = self.transfer("none")
+        """Anything discovering this peer learns it is fake without being told.
+
+        Driven through the Advertisement object rather than through a --lan
+        run, deliberately: asserting the TXT record must not require binding
+        0.0.0.0 on the machine of whoever runs this suite. No socket is opened
+        here at all — only the stubbed publisher, which records its arguments.
+        """
+        peer = load_peer()
+        with tempfile.TemporaryDirectory(prefix="omapixel-adv-") as tmp:
+            sandbox = Path(tmp)
+            log = sandbox / "invocations.log"
+            write_sandbox(sandbox, {"avahi-publish-service": AVAHI_STUB}, log=log)
+
+            import os
+
+            # Both, and the second one is the one that matters. shutil.which()
+            # reads os.environ, but Popen resolves the program name through the
+            # env it is *given*, and the emulator captured ENV at import time —
+            # with the real PATH. Overriding only os.environ made this test run
+            # /usr/bin/avahi-publish-service and publish a real mDNS record on
+            # the LAN. Measured, not theorised: it happened here on 2026-08-15.
+            saved_path = os.environ["PATH"]
+            saved_env = peer.ENV
+            os.environ["PATH"] = str(sandbox)
+            peer.ENV = {**peer.ENV, "PATH": str(sandbox)}
+            try:
+                advert = peer.Advertisement("Virtual Pixel (simulated)", 41617)
+                self.assertTrue(advert.start(), "the publisher was not started")
+                # Read before stopping: stop() kills the publisher, and it can
+                # die before the shell has run its first line. Same race as in
+                # read_invocations(), from the other side.
+                invocations = read_invocations(log)
+            finally:
+                advert.stop()
+                os.environ["PATH"] = saved_path
+                peer.ENV = saved_env
+
         published = [line for line in invocations
                      if line.startswith("avahi-publish-service")]
         self.assertTrue(published, "nothing was advertised")
         self.assertIn("simulated=true", published[0])
         self.assertIn("_FC9F5ED42C8A._tcp", published[0])
+
+    def test_by_default_it_never_listens_on_the_lan(self):
+        """The network-surface rule, measured rather than read off a log line.
+
+        Rule 1 says no Bluetooth; it says nothing about what the peer binds,
+        and a listener on 0.0.0.0 is new surface on Hari's network and on the
+        network of anybody running this suite. Checked by effect: while the
+        peer is up, this test binds the same port on the machine's own LAN
+        address. That only succeeds if the peer did not take all interfaces.
+        """
+        probe = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        try:
+            probe.connect(("192.0.2.1", 9))  # documentation net: no packet is sent
+            lan_address = probe.getsockname()[0]
+        except OSError:
+            self.skipTest("no routable address to test against")
+        finally:
+            probe.close()
+        if lan_address.startswith("127."):
+            self.skipTest("this machine has only loopback")
+
+        with tempfile.TemporaryDirectory(prefix="omapixel-bind-") as tmp:
+            sandbox = Path(tmp)
+            write_sandbox(sandbox, {"avahi-publish-service": AVAHI_STUB},
+                          log=sandbox / "invocations.log")
+            process = subprocess.Popen(
+                [INTERPRETER, str(PEER), "--once"],
+                stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+                env=sandbox_env(sandbox),
+            )
+            try:
+                port = None
+                for line in process.stdout:
+                    if "listening" in line and "tcp/" in line:
+                        port = int(re.search(r"tcp/(\d+)", line).group(1))
+                    if " ready" in line:
+                        break
+                self.assertIsNotNone(port)
+
+                mine = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                try:
+                    mine.bind((lan_address, port))
+                except OSError as exc:
+                    self.fail(
+                        f"port {port} was already taken on {lan_address}: the peer "
+                        f"bound all interfaces without --lan ({exc})"
+                    )
+                finally:
+                    mine.close()
+            finally:
+                process.terminate()
+                process.communicate(timeout=10)
+
+    def test_a_loopback_run_publishes_nothing(self):
+        """Bind and advertisement are one decision, not two.
+
+        Advertising a loopback endpoint over mDNS would publish something
+        nobody can reach, and would put a record on the network anyway.
+        """
+        _, lines, invocations = self.transfer("none")
+        self.assertTrue(any("not advertising" in line for line in lines))
+        self.assertEqual(
+            [line for line in invocations if line.startswith("avahi-publish-service")],
+            [], "a loopback run published an mDNS record",
+        )
 
     # --- privacy ------------------------------------------------------------
 

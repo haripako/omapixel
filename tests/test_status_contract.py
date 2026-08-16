@@ -41,7 +41,9 @@ HOST_MAC = "AA:BB:CC:DD:EE:FF"
 HOST_IP = "[ip redacted]"
 
 STATUSES = {"not_installed", "no_answer", "nothing_present", "not_probed", "ready"}
-CAPABILITY_KEYS = {"available", "status", "reason", "provider", "state"}
+# as_of is per capability, not per document: a consumer caches one capability
+# at a time, so a single document-level stamp would age them all together.
+CAPABILITY_KEYS = {"available", "status", "reason", "provider", "state", "as_of"}
 
 # An empty machine: no rquickshare, no kdeconnect-cli, no pbpctrl. Only the
 # things that describe the host, and a bluetoothctl that refuses to do anything
@@ -167,6 +169,42 @@ class StatusContract(unittest.TestCase):
         data, _ = self.json_status()
         datetime.strptime(data["generated"], "%Y-%m-%dT%H:%M:%SZ")
 
+    def test_every_capability_carries_its_own_timestamp(self):
+        """Invariant 7. A consumer caches capabilities one at a time.
+
+        Parsed with fromisoformat rather than a fixed pattern: the contract is
+        "ISO-8601, UTC", not a particular resolution. Pinning the format meant
+        this test broke when milliseconds were added — and milliseconds were
+        added for a real reason, since the whole call takes 84 ms and two
+        consecutive probes were carrying the same second-resolution stamp.
+        Fixing the resolution in a test would have argued against a change that
+        was right.
+        """
+        from datetime import datetime, timezone
+
+        data, _ = self.json_status()
+        for name, cap in data["capabilities"].items():
+            with self.subTest(capability=name):
+                stamp = datetime.fromisoformat(cap["as_of"])
+                self.assertEqual(stamp.utcoffset(), timezone.utc.utcoffset(None),
+                                 f"{name} stamped its as_of outside UTC")
+
+    def test_two_probes_produce_distinguishable_timestamps(self):
+        """The reason the resolution went below a second.
+
+        A consumer comparing stamps has to be able to tell a fresh reading from
+        one taken 999 ms ago. Asserted on the value, so a return to
+        second-resolution fails here rather than silently making every reading
+        look simultaneous.
+        """
+        first, _ = self.json_status()
+        second, _ = self.json_status()
+        stamps = {
+            first["capabilities"]["buds"]["as_of"],
+            second["capabilities"]["buds"]["as_of"],
+        }
+        self.assertEqual(len(stamps), 2, f"both probes stamped {stamps}")
+
     # --- privacy ------------------------------------------------------------
 
     def test_output_carries_the_subnet_and_never_the_host_address(self):
@@ -183,6 +221,40 @@ class StatusContract(unittest.TestCase):
         """bluetoothctl hands back MAC addresses. None may survive."""
         data, _ = self.json_status(stubs={"pbpctrl": "#!/bin/sh\n"})
         self.assertNotIn(HOST_MAC, json.dumps(data))
+
+    def test_path_substitution_actually_contains_the_command(self):
+        """Containment measured by effect, because it has failed by mechanism.
+
+        Three times in this project a harness reported containment it did not
+        have — most recently when Popen resolved a program through an env
+        captured at import while shutil.which read os.environ, and a test that
+        existed to publish nothing published a real mDNS record on the LAN.
+
+        So this does not check that PATH was replaced. It feeds a stub an
+        answer the real tool could never give and looks for that answer in the
+        output: if the real busctl had run, the device id would not be
+        `canary-not-a-real-device`. Meaningful only where the real binaries
+        exist, which is why it skips otherwise.
+        """
+        import shutil
+
+        if not shutil.which("busctl") or not shutil.which("kdeconnectd"):
+            self.skipTest("no real busctl/kdeconnectd here, so nothing to contain")
+
+        stubs = {
+            "kdeconnectd": "#!/bin/sh\n",
+            "busctl": '#!/bin/sh\necho \'as 1 "canary-not-a-real-device"\'\n',
+        }
+        data, invocations = self.json_status(stubs=stubs)
+        link = data["capabilities"]["phone-link"]
+        self.assertEqual(
+            link["state"]["devices"], ["canary-not-a-real-device"],
+            "the stub's answer did not come back: the real busctl was reached",
+        )
+        self.assertTrue(
+            any(line.startswith("busctl") for line in invocations),
+            "no busctl invocation was recorded at all",
+        )
 
     # --- what it must not do ------------------------------------------------
 
@@ -267,12 +339,17 @@ class StatusContract(unittest.TestCase):
 
     # --- degraded machines --------------------------------------------------
 
+    # kdeconnect is asked over D-Bus now, not through its CLI: the CLI runs a
+    # fixed 2 s discovery cycle before answering, which was 2008 ms of a 2090 ms
+    # status call and blocked the whole bar widget. Presence is decided by
+    # busctl + kdeconnectd, so a stub for the CLI intercepts nothing.
+    PAIRED_AND_REACHABLE = {
+        "kdeconnectd": "#!/bin/sh\n",
+        "busctl": '#!/bin/sh\necho \'as 1 "abcd1234"\'\n',
+    }
+
     def everything_working(self) -> dict[str, str]:
-        return {
-            **self.LISTENING,
-            "kdeconnect-cli": "#!/bin/sh\necho abcd1234\n",
-            "pbpctrl": "#!/bin/sh\n",
-        }
+        return {**self.LISTENING, **self.PAIRED_AND_REACHABLE, "pbpctrl": "#!/bin/sh\n"}
 
     def test_installed_but_not_running_is_no_answer(self):
         data, _ = self.json_status(stubs={"rquickshare": "#!/bin/sh\n"})
@@ -341,18 +418,58 @@ class StatusContract(unittest.TestCase):
         self.assertIn("could not be checked", transfer["reason"])
 
     def test_daemon_that_does_not_answer_is_distinguished_from_absent(self):
-        stubs = {"kdeconnect-cli": "#!/bin/sh\nexit 1\n"}
+        stubs = {"kdeconnectd": "#!/bin/sh\n", "busctl": "#!/bin/sh\nexit 1\n"}
         data, _ = self.json_status(stubs=stubs)
         link = data["capabilities"]["phone-link"]
         self.assertEqual(link["status"], "no_answer")
         self.assertIn("daemon", link["reason"])
 
     def test_paired_phone_is_ready(self):
-        stubs = {"kdeconnect-cli": "#!/bin/sh\necho abcd1234\n"}
-        data, _ = self.json_status(stubs=stubs)
+        data, _ = self.json_status(stubs=self.PAIRED_AND_REACHABLE)
         link = data["capabilities"]["phone-link"]
         self.assertEqual(link["status"], "ready")
         self.assertEqual(link["state"]["devices"], ["abcd1234"])
+        self.assertEqual(link["state"]["reachable"], ["abcd1234"])
+
+    def test_nothing_paired_is_not_the_same_as_paired_but_unreachable(self):
+        """Two states, two different things for the user to go and do.
+
+        Nothing paired means go and pair. Paired but out of reach means the
+        phone is off, asleep or on another network — and the CLI could not
+        express the difference at all, which is why it is worth fixing here
+        before somebody collapses them again.
+        """
+        nothing = {"kdeconnectd": "#!/bin/sh\n",
+                   "busctl": "#!/bin/sh\necho 'as 0'\n"}
+        data, _ = self.json_status(stubs=nothing)
+        link = data["capabilities"]["phone-link"]
+        self.assertEqual(link["status"], "nothing_present")
+        self.assertIn("no device is paired", link["reason"])
+        self.assertEqual(link["state"]["devices"], [])
+
+        # Paired, then unreachable: the first call answers with the device, the
+        # second — the reachable-only one — answers with none.
+        unreachable = {
+            "kdeconnectd": "#!/bin/sh\n",
+            "busctl": (
+                "#!/bin/sh\n"
+                'case "$*" in\n'
+                "  *' bb true true'*) echo 'as 0' ;;\n"
+                '  *) echo \'as 1 "abcd1234"\' ;;\n'
+                "esac\n"
+            ),
+        }
+        data, _ = self.json_status(stubs=unreachable)
+        link = data["capabilities"]["phone-link"]
+        self.assertEqual(link["status"], "nothing_present")
+        self.assertIn("none reachable", link["reason"])
+        self.assertEqual(link["state"]["devices"], ["abcd1234"])
+        self.assertEqual(link["state"]["reachable"], [])
+        self.assertNotEqual(
+            link["reason"],
+            "no device is paired with KDE Connect",
+            "paired-but-unreachable is being reported as nothing paired",
+        )
 
     def test_hosts_without_hyprland_or_pacman_still_produce_json(self):
         """The product must not assume Omarchy, Hyprland or Arch.

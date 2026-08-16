@@ -136,6 +136,9 @@ class PrivacyOfPublishedReports(unittest.TestCase):
                         f"{path.name} leaks {', '.join(found)}.\n"
                         f"Use the adapter model and the bare subnet instead; see "
                         f"docs/conventions.md, 'Privacy in public reports'.\n"
+                        f"If that is a four-part version number and not an "
+                        f"address, it is a known false positive: quote it as "
+                        f"prose or drop the fourth component.\n"
                         f"Do NOT normalise the address away — it already travelled "
                         f"in the contributor's pull request. Reject the report and "
                         f"ask them to edit it at the source."
@@ -214,6 +217,16 @@ class PrivacyOfPublishedReports(unittest.TestCase):
         """Colons are everywhere. The parser decides, not the shape."""
         text = 'log = "23:15:49 started"\nusb = "18d1:4ee2"\nadapter = "0e8d:0608"'
         self.assertEqual(privacy_violations(text), [])
+
+    def test_a_four_part_version_is_a_known_false_positive(self):
+        """It fails closed, so it is a nuisance and not a leak.
+
+        `5.87.2.1` is indistinguishable from an address by shape, and the
+        detector chooses to shout. Pinned here so the behaviour is on the
+        record, and the failure message says so — a stranger's build going red
+        over a version string is how a privacy check loses its welcome.
+        """
+        self.assertTrue(privacy_violations('bluez = "5.87.2.1"'))
 
     def test_the_documented_blind_spots_are_still_blind(self):
         """Pins what the docstring promises, so the promise cannot rot.
