@@ -58,6 +58,7 @@ do that yourself, open a pull request instead:
 
 | Table | Field | Required | Meaning |
 |---|---|---|---|
+| top level | `origin` | yes | `device`, `emulator` or `unknown`. Where the numbers came from |
 | `[reporter]` | `handle` | yes | Your GitHub handle, so a claim has a name on it |
 | `[reporter]` | `date` | yes | ISO 8601 date you took the measurements |
 | `[device]` | `kind` | yes | `phone` or `earbuds` |
@@ -73,6 +74,21 @@ do that yourself, open a pull request instead:
 | `[[result]]` | `notes` | no | The caveat. Often the most useful field |
 
 Omit `[[result]]` entirely for anything you did not test.
+
+`origin` is required and has no default, which is deliberate: if leaving it out
+meant `device`, the guarantee would be that everyone remembers to declare a
+simulated run, and that is a hope rather than a guarantee. It is not a boolean
+for the same reason — `simulated = false` cannot say "I do not know", so
+`unknown` gets a value of its own. Say `device` when you ran this against real
+hardware. Results that are not from a device are still welcome; they are
+rendered `(emulator)` or `(origin unknown)` in the matrix rather than counted
+as a measurement on hardware.
+
+Every report also ends with a marker line, `# *— end of report —*`, which
+`hw-report.sh` emits for you. If you write a report by hand, keep it: a
+truncated TOML file is still valid TOML, so without it a report that got cut
+off loads with fewer results than you measured, and the matrix reads those rows
+as "nobody tested this".
 
 `scripts/build-matrix.py --check` validates all of this and runs in CI, so a
 malformed report fails the pull request with a message naming the file and the
