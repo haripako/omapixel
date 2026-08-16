@@ -105,6 +105,19 @@ can separate them:
 | A peer in the list | A real Pixel, or our emulator |
 | A failed transfer | Our end gave up, or theirs refused |
 
+**The first one landed on 2026-08-16: `origin` on a device report**, top-level,
+required, one of `device` | `emulator` | `unknown`. Not a boolean — `simulated
+= true` cannot say "I do not know", because its absence collapses to false,
+which reads as "real". Required rather than defaulted for the same reason: if
+absent meant `device`, the guarantee would be that every contributor remembers
+to declare a simulated run, and that is not a guarantee. In the matrix,
+`measured` only counts as a measurement on hardware when the report says it ran
+on hardware; anything else is rendered `(emulator)` or `(origin unknown)`. The
+emulator will be the cheapest thing in this project to run and the only one
+always available while the hardware is missing, so the erosion will not come
+from bad faith — it will come from it being easy, and an unqualified cell is
+the whole way it erodes.
+
 **A value without provenance is not drawn as fact.** A missing provenance field
 means unknown, and unknown never renders as real — that direction matters,
 because an old emulator build or a truncated payload must degrade into "unsure",

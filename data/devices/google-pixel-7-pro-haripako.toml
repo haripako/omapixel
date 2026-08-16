@@ -9,6 +9,10 @@
 
 schema = 1
 
+# Where these numbers came from: device | emulator | unknown.
+# Required, and never assumed — an assumed origin would read as real hardware.
+origin = "device"
+
 [reporter]
 handle = "haripako"
 date = "2026-08-15"

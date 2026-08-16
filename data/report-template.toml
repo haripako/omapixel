@@ -14,6 +14,12 @@
 
 schema = 1
 
+# Where these numbers came from. Required. One of: device | emulator | unknown.
+# "device" means you ran this against real hardware. Use "emulator" for a run
+# against tools/virtual-pixel, and "unknown" if you genuinely cannot tell —
+# unknown is honest, and it is never rendered as a measurement.
+origin = "device"
+
 [reporter]
 handle = "your-github-handle"
 date = "2026-08-15"            # ISO 8601, the date you took the measurements

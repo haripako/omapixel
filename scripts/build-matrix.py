@@ -155,6 +155,36 @@ def load_capabilities() -> list[dict]:
     return caps
 
 
+# Where the numbers in a report came from. Required, and a closed vocabulary.
+#
+# Not a boolean. `simulated = true` cannot say "I do not know", because its
+# absence collapses to false, which reads as "real" — the one reading the rule
+# forbids. With three values the unknown case has somewhere to live, and the
+# invariant stops depending on nobody forgetting the field.
+#
+# Required rather than defaulted for the same reason: if an absent field meant
+# "device", the guarantee would be that every contributor remembers to declare
+# a simulated run, which is not a guarantee. Absent is an error, and an error
+# names the fix.
+ORIGINS = ("device", "emulator", "unknown")
+
+
+def validated_origin(data: dict, path: Path) -> str:
+    origin = data.get("origin")
+    if origin is None:
+        raise ReportError(
+            f"{path.name}: no top-level origin. Say where these numbers came "
+            f"from: {', '.join(ORIGINS)}. It is required rather than assumed, "
+            f"because an assumed origin would read as a real device"
+        )
+    if origin not in ORIGINS:
+        raise ReportError(
+            f"{path.name}: origin is {origin!r}, expected one of "
+            f"{', '.join(ORIGINS)}"
+        )
+    return origin
+
+
 def load_reports(known_ids: set[str]) -> list[dict]:
     if not DEVICES.is_dir():
         return []
@@ -175,6 +205,7 @@ def load_reports(known_ids: set[str]) -> list[dict]:
             ),
             "kind": require(data, "device", "kind", path),
             "host": validated_host(data.get("host", {}), path),
+            "origin": validated_origin(data, path),
             "results": [],
         }
 
@@ -239,20 +270,37 @@ def device_label(report: dict) -> str:
 def summarise(cap_id: str, reports: list[dict]) -> str:
     """One cell: the spread of reported statuses, worst first."""
     counts: dict[str, int] = {}
-    derived_only = True
+    origins: set[str] = set()
+    measured_on_hardware = False
     for report in reports:
         for result in report["results"]:
             if result["id"] == cap_id:
                 counts[result["status"]] = counts.get(result["status"], 0) + 1
-                if result["method"] == "measured":
-                    derived_only = False
+                origins.add(report["origin"])
+                # "measured" is a claim about method; it only becomes a claim
+                # about hardware when the report says it ran on hardware. A run
+                # against the emulator is measured — of the emulator.
+                if result["method"] == "measured" and report["origin"] == "device":
+                    measured_on_hardware = True
 
     if not counts:
         return "untested"
 
     parts = [f"{status} {counts[status]}" for status in STATUS_ORDER if status in counts]
     cell = ", ".join(parts)
-    return f"{cell} (derived)" if derived_only else cell
+    if measured_on_hardware:
+        return cell
+    # Anything that is not a measurement on real hardware says which kind of
+    # not-a-measurement it is. The emulator is going to be the cheapest thing
+    # in this project to run and the only one always available while the
+    # hardware is missing, so the erosion will not come from bad faith — it
+    # will come from it being easy. An unqualified cell is the whole way it
+    # erodes.
+    if "emulator" in origins:
+        return f"{cell} (emulator)"
+    if "unknown" in origins:
+        return f"{cell} (origin unknown)"
+    return f"{cell} (derived)"
 
 
 def render(caps: list[dict], reports: list[dict]) -> str:
