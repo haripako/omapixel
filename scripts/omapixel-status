@@ -28,6 +28,7 @@ from __future__ import annotations
 import ipaddress
 import json
 import os
+import re
 import shlex
 import shutil
 import subprocess
@@ -77,6 +78,15 @@ NOT_INSTALLED = "not_installed"    # the tool is not on this machine
 NO_ANSWER = "no_answer"            # installed, but it did not respond
 NOTHING_PRESENT = "nothing_present"  # it answered, and there is no device
 NOT_PROBED = "not_probed"          # deliberately not asked, see reason
+# Installed, startable, and starting it damages this machine. Distinct from
+# no_answer because the two carry opposite advice: no_answer means "start it",
+# and a consumer that switches on status — as this contract tells it to — will
+# say exactly that. On BlueZ 5.87 that advice crashes bluetoothd and takes the
+# user's Bluetooth mouse with it, so the missing state was not cosmetic: the
+# bar was about to give actively harmful advice, correctly derived from a
+# vocabulary that had no way to say anything else. Raised by the desktop layer
+# on 2026-08-16. Named to match `blocked` in the capability matrix.
+BLOCKED = "blocked"
 READY = "ready"
 
 
@@ -169,6 +179,92 @@ def probe_host() -> dict:
 # --- capabilities -----------------------------------------------------------
 
 
+# BlueZ up to and including 5.87 crashes when a client registers a UUID
+# discovery filter and any neighbour advertises a service: is_filter_match()
+# hands queue_find() its arguments swapped, so a UUID string gets called as a
+# function. Measured from three core dumps on this machine on 2026-08-16; the
+# backtrace is in docs/04-reference-setup.md. Fixed upstream in 82af2be, six
+# days after the 5.87 tag, and no release carries it yet.
+#
+# Version-gated rather than hardcoded, because "rquickshare is dangerous" is
+# false on 5.88 and this file would otherwise keep saying it forever.
+BLUEZ_FIRST_SAFE = (5, 88)
+
+
+def bluez_version() -> tuple[int, ...] | None:
+    """(major, minor) or None when it cannot be determined.
+
+    Asks BlueZ, not the package manager. `pkg_version` shells out to pacman,
+    and docs/05-packaging.md says the product cannot assume a distribution —
+    on anything without pacman this would have returned None forever, and
+    since unknown is treated as unsafe, the capability would have been blocked
+    permanently on every non-Arch machine. `bluetoothctl --version` prints and
+    exits without touching the adapter.
+    """
+    rc, out = run(["bluetoothctl", "--version"])
+    if rc != 0 or not out:
+        out = pkg_version("bluez") or ""
+    match = re.search(r"(\d+)\.(\d+)", out)
+    return (int(match[1]), int(match[2])) if match else None
+
+
+def running_daemon_predates_binary() -> bool | None:
+    """True when bluetoothd started before the binary on disk was last written.
+
+    The version above is the binary's, and the binary is the name — the daemon
+    in memory is the thing. The scenario is not exotic, it is the one that will
+    happen: 5.88 ships, the user upgrades, nothing restarts bluetoothd, and the
+    live process is still the 5.87 that crashes while the version check says
+    safe. The bar would then advise exactly the action that kills the mouse.
+
+    Comparing start time against the binary's mtime is the cheap approximation.
+    None when it cannot be determined, which the caller treats as unsafe.
+    """
+    rc, out = run(["pgrep", "-x", "bluetoothd"])
+    if rc != 0 or not out.strip():
+        return None
+    pid = out.split()[0]
+    for path in ("/usr/lib/bluetooth/bluetoothd", "/usr/libexec/bluetooth/bluetoothd"):
+        try:
+            # /proc/<pid> is created when the process starts, so its mtime is
+            # the daemon's start time without needing to read /proc/<pid>/exe,
+            # which is root-only for a root-owned process.
+            return os.stat(f"/proc/{pid}").st_mtime < os.stat(path).st_mtime
+        except OSError:
+            continue
+    return None
+
+
+def le_discovery_is_safe() -> tuple[bool, str]:
+    """(safe, what we actually know). Never claims a cause it did not check."""
+    version = bluez_version()
+    if version is None:
+        # Unknown is not safe: the point of this state is to stop a consumer
+        # advising an action that breaks the machine, and "we could not tell"
+        # is not grounds to advise it. But the reason must say that, not
+        # assert a defect in a version nobody read — on a machine without
+        # pacman and without bluetoothctl, claiming "the installed bluez
+        # crashes bluetoothd" is simply false.
+        return False, "the version of bluez could not be determined"
+
+    found = ".".join(str(n) for n in version)
+    if version < BLUEZ_FIRST_SAFE:
+        return False, f"bluez {found} has the bug"
+
+    stale = running_daemon_predates_binary()
+    if stale is None:
+        return False, (
+            f"bluez {found} on disk has the fix, but whether the running "
+            f"bluetoothd is that build could not be determined"
+        )
+    if stale:
+        return False, (
+            f"bluez {found} on disk has the fix, but bluetoothd started before "
+            f"that build was installed and is still the old one — restart it"
+        )
+    return True, f"bluez {found}"
+
+
 def probe_file_transfer() -> dict:
     if not shutil.which("rquickshare"):
         return capability(
@@ -177,6 +273,23 @@ def probe_file_transfer() -> dict:
         )
 
     provider = pkg_version("r-quick-share") or "rquickshare"
+
+    safe, known = le_discovery_is_safe()
+    if not safe:
+        return capability(
+            BLOCKED,
+            f"do not start rquickshare on this machine: {known}. BlueZ up to "
+            f"5.87 crashes when a discovery filter meets an advertisement, and "
+            f"that takes any Bluetooth mouse down with it. Fixed upstream in "
+            f"82af2be, unreleased — waiting for bluez 5.88",
+            provider,
+            {
+                "running": False,
+                "peers": unavailable("discovery would crash bluetoothd"),
+                "blocked_by": known,
+                "unblocked_by": "bluez 5.88, and a bluetoothd restarted into it",
+            },
+        )
 
     if run(["pgrep", "-x", "rquickshare"])[0] != 0:
         return capability(

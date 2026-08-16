@@ -204,9 +204,45 @@ which is the point.
 | `no_answer` | Installed, but it did not respond | Start a daemon |
 | `nothing_present` | It answered, and there is no device | Pair something |
 | `not_probed` | Deliberately not asked. `reason` says why | Depends |
+| `blocked` | Installed and startable, and starting it damages this machine | **Wait.** `state.unblocked_by` says for what |
 
 `available` is exactly `status == "ready"` and exists only so simple consumers
 can ignore the rest.
+
+`blocked` was added on 2026-08-16 because the vocabulary made the bar give
+actively harmful advice, and it did so correctly. `file-transfer` was reporting
+`no_answer`, a consumer switching on `status` — as this contract instructs —
+read that as "start it", and on BlueZ 5.87 starting `rquickshare` crashes
+`bluetoothd` and takes the user's Bluetooth mouse with it. "Installed and
+stopped" and "installed, startable, and starting it breaks this machine" are
+two situations with opposite advice, and they were collapsing into one state.
+Raised by the desktop layer, which had the harmful string on screen in its own
+code and correctly refused to special-case `rquickshare` in the widget: a
+consumer must not know which tools are underneath, which is what this contract
+is for.
+
+It carries two extra fields in `state`, because "wait" is useless without
+saying for what:
+
+| Field | Meaning |
+|---|---|
+| `blocked_by` | What is known, phrased as knowledge — not a cause that was not checked |
+| `unblocked_by` | What would clear it. `"bluez 5.88, and a bluetoothd restarted into it"` |
+
+Two rules learned putting it in, both instances of *a name is not the thing*:
+
+- **Gate on the version, never on the tool.** "rquickshare is dangerous" is
+  false on 5.88 and this file would have repeated it forever.
+- **The package is not the daemon.** The version on disk says what will run
+  next time, not what is running now. When 5.88 ships and nobody restarts
+  `bluetoothd`, the live process is still the one that crashes while a naive
+  check reports safe — so the check also compares the daemon's start time
+  against the binary's mtime, and an upgraded-but-not-restarted machine stays
+  `blocked`. Raised by QA.
+
+And when the version cannot be read at all, it blocks — unknown is not grounds
+to advise an action that breaks a machine — but `blocked_by` then says exactly
+that and does not assert a defect in a version nobody read.
 
 `not_probed` earns its place from a measured hazard: on the reference machine a
 tool bringing up a BLE listener segfaults `bluetoothd` and takes the user's
