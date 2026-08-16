@@ -322,14 +322,35 @@ human)
   printf '  %-22s %s\n' "pixel over usb"  "$(pixel_usb)"
   echo
 
+  # The bare `pacman -S` used to be printed on its own, and on a fresh Omarchy
+  # it fails: the package databases are empty, so every name comes back as
+  # "target not found". Measured by the advisor in a clean VM on 2026-08-16.
+  #
+  # Two things make that worse than a failed command. "target not found:
+  # kdeconnect" tells someone with modest Arch knowledge that the package does
+  # not exist, so they go looking for it or conclude the documentation is
+  # wrong. And pacman's own advice, "use '-Sy' to download", is the classic way
+  # to break an Arch install: -Sy without -u leaves a partial upgrade. The
+  # error message points at the dangerous exit, and it mostly works, which is
+  # what makes it a trap.
   if [ ${#missing_pacman[@]} -gt 0 ]; then
     echo "Install from the official repositories:"
-    echo "  sudo pacman -S ${missing_pacman[*]}"
+    echo "  sudo pacman -Syu ${missing_pacman[*]}"
+    printf '  %s On a fresh install, sync first: a bare -S reports "target not found"\n' "$WARN"
+    printf '     for packages that exist. Never -Sy on its own; that is a partial\n'
+    printf '     upgrade. On Omarchy, "Update System" from the menu does this for you.\n'
   fi
   if [ ${#missing_aur[@]} -gt 0 ]; then
     echo "Install from the AUR:"
     echo "  yay -S ${missing_aur[*]}"
-    printf '  %s pbpctrl had not been updated in 482 days as of 2026-08-15: it may not build\n' "$WARN"
+    # Was "it may not build". It builds: measured 2026-08-16 in a clean Omarchy
+    # 4.0.0 VM, 48 seconds, pbpctrl 0.1.8-1. The staleness is real and the
+    # pessimism was not, so the warning now says the part that is still true —
+    # building is not the same as speaking to hardware it was never aimed at.
+    printf '  %s pbpctrl was 482 days without an AUR update as of 2026-08-15, but\n' "$WARN"
+    printf '     built fine on 2026-08-16 (0.1.8-1, ~48s, clean Omarchy 4.0.0).\n'
+    printf '     It targets first-generation Pixel Buds Pro: building says nothing\n'
+    printf '     about whether it talks to Buds Pro 2, which use a different SoC.\n'
   fi
   if [ ${#missing_pacman[@]} -eq 0 ] && [ ${#missing_aur[@]} -eq 0 ]; then
     echo "Nothing left to install."
