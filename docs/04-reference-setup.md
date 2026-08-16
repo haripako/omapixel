@@ -164,10 +164,36 @@ payload is legible and belongs to a passing `Oclean X` toothbrush). `rquickshare
 appears nowhere in the stack; it is a separate process. It is the **trigger**,
 because it turns on LE discovery with filters, not the thing that crashes.
 
-*Not measured:* the root cause. Why the filter list holds a bad pointer — a
-use-after-free on a client's discovery filter, a type confusion, or something
-else — does not follow from the backtrace, and three identical stacks do not
-distinguish those.
+**The root cause, measured, and it is not a corruption at all — the arguments
+are swapped.** Reading the address that gets called settles it:
+
+```
+gdb -batch -q -ex 'x/s 0x560c724cebf0' /usr/lib/bluetooth/bluetoothd core-1088.dump
+0x560c724cebf0:  "0000fe2c-0000-1000-8000-00805f9b34fb"
+```
+
+Identical in all three dumps. The value passed where `queue_find` expects a
+match function is **a UUID string**, so nothing is corrupted or freed: the call
+site hands `queue_find` its arguments in the wrong order and the string is
+invoked as code. That matches the upstream diagnosis exactly — `is_filter_match()`
+passing the UUID where the match function belongs, a slip introduced when that
+code moved from `GSList` to `struct queue` — and it is confirmed here from the
+dumps rather than taken on trust.
+
+And the UUID names the trigger. `0xFE2C` is **Google Fast Pair**, which is the
+service `rquickshare` filters on. So the crash needs two things at once: a
+client registering a Fast Pair discovery filter, and any device at all
+advertising nearby. That is why it looked like launching `rquickshare` crashed
+`bluetoothd` — it registers the filter, and the next stranger's advertisement
+does the rest.
+
+**Fixed upstream, and not in the version installed here.** Derived from the
+GitHub API by the coordination agent on 2026-08-16: the fix is commit
+`82af2be`, dated 2026-07-09, while tag `5.87` is dated 2026-07-03 — six days
+earlier. A tag cannot contain a later commit, and no `5.88` exists, so `bluez
+5.87-2` on this machine cannot have it. **Do not open an upstream issue: it
+would be a duplicate.** Two ways out, both product decisions rather than code:
+build BlueZ with the patch, or wait for 5.88.
 
 *Derived, and the reason this matters beyond F1:* if any other tool that brings
 up LE discovery reaches the same code, it will crash `bluetoothd` the same way,
