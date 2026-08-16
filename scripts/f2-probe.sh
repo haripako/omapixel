@@ -49,7 +49,19 @@ drops_before=$(journalctl -k --since "1 hour ago" 2>/dev/null \
   | grep -c "UFW BLOCK.*DPT=$PORT") || drops_before=0
 say "  ufw drops on $PORT in the last hour: $drops_before"
 
-devices_before=$(kdeconnect-cli -l --id-only 2>/dev/null | grep -c .) || devices_before=0
+# Asked over D-Bus, not through the CLI. Two reasons, and both are already
+# project decisions: kdeconnect-cli --list-devices runs a fixed two-second
+# discovery cycle before answering, which is useless in a three-second poll
+# loop; and scripts here must not invoke the integration tools directly, so a
+# test sandbox can still intercept everything. tests/test_hw_report.py enforces
+# the second and caught this script doing it.
+kde() {
+  busctl --user call org.kde.kdeconnect /modules/kdeconnect \
+    org.kde.kdeconnect.daemon devices bb "$1" "$2" 2>/dev/null \
+    | tr ' ' '\n' | grep -c '"' || true
+}
+
+devices_before=$(kde false true)
 say "  devices known: $devices_before"
 
 say ""
@@ -63,16 +75,17 @@ seen_paired=0
 start=$(date +%s)
 
 while [ $(( $(date +%s) - start )) -lt "$DURATION" ]; do
-  ids=$(kdeconnect-cli -l --id-only 2>/dev/null | grep -c .) || ids=0
+  ids=$(kde true false)
   if [ "$ids" -gt "$devices_before" ] && [ "$seen_device" -eq 0 ]; then
     seen_device=1
     say "STAGE 1 reached: the phone is visible. Discovery works, so the LAN"
     say "  path and the firewall are both fine."
-    kdeconnect-cli -l 2>/dev/null | sed 's/^/    /'
+    busctl --user call org.kde.kdeconnect /modules/kdeconnect \
+      org.kde.kdeconnect.daemon devices bb true false 2>/dev/null | sed 's/^/    /'
   fi
 
   if [ "$seen_device" -eq 1 ] && [ "$seen_paired" -eq 0 ]; then
-    if kdeconnect-cli -a --id-only 2>/dev/null | grep -q .; then
+    if [ "$(kde true true)" -gt 0 ]; then
       seen_paired=1
       say "STAGE 2 reached: paired and reachable."
       say "  This is NOT 'notifications work' and NOT 'clipboard works'."

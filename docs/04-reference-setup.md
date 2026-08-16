@@ -373,3 +373,61 @@ The bluetooth journal stayed quiet throughout. `strace -f -e trace=socket` would
 have added the syscall half of this and **could not be run: strace is not
 installed on this machine.** Stated plainly rather than quietly skipped, because
 a missing half of a measurement is itself worth knowing.
+
+## F2: the phone is linked, and not over the LAN
+
+**Measured 2026-08-16.** The first working link to the phone in this project,
+and the transport is not the one every earlier note assumed.
+
+```
+$ busctl --user call org.kde.kdeconnect /modules/kdeconnect \
+    org.kde.kdeconnect.daemon devices bb true true
+as 1 "<device-id>"
+
+$ ss -tnp | grep 1716
+ESTAB  [100.64.0.0/10 host]:1716  [100.64.0.0/10 host]:38748  users:(("kdeconnectd",…))
+
+$ ip route get <phone>
+… dev tailscale0 …
+```
+
+| Fact | Value |
+|---|---|
+| Device | Google Pixel 7 Pro, `type: phone` |
+| Paired | yes |
+| Reachable | yes |
+| Transport | **Tailscale**, interface `tailscale0` |
+| This host's physical subnet | `192.168.10.0/24` |
+| Phone on that subnet | **no** — Hari is away from home |
+| Plugins negotiated | 20, including clipboard, notifications, share, battery |
+| Phone battery | 53 %, not charging |
+
+**Every F2 measurement taken today is over a VPN, and none of them may be
+written as "works on the LAN".** The two are different claims with different
+failure modes: the LAN path needs broadcast, the same subnet and a permissive
+firewall, and none of that was exercised here. `kdeconnect-cli` reports the
+link as being over the LAN, which is wrong — one more instance of the rule
+this machine keeps teaching, that a subsystem's account of itself is not
+evidence. The transport was confirmed from `ss` and `ip route`, not from what
+the tool said.
+
+**Why LAN discovery had never happened**, established by the coordination agent
+and consistent with what was measured here earlier: KDE Connect discovers over
+UDP broadcast, and Tailscale does not carry broadcast. That is why the kernel
+logged 10,675 `ufw` drops in three days and **zero** on port 1716 — the traffic
+never left, so the firewall was never the obstacle. It needed
+`customDevices=<phone>` in `~/.config/kdeconnect/config` and a daemon restart.
+
+**Nothing is promoted in the matrix from this.** Pairing is the precondition
+for the five F2 rows — clipboard, notifications, SMS, remote input, screen
+mirroring — and is none of them. The plugin list says the two ends negotiated
+those features, not that any of them carries data: `activeNotifications`
+returned zero, which is equally consistent with "notifications work and the
+phone has none" and with "notifications never arrive". Distinguishing those
+needs somebody to produce a notification on the phone, and the phone is not
+here.
+
+`phone-link` in the status contract reports `ready` with the device in both
+`devices` and `reachable`, which closes that loop: the contract was written
+against a machine where nothing was paired, and it did not need a change when
+something finally was.
