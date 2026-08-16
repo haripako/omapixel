@@ -49,3 +49,5 @@ rtt_ms = { min = 4.8, median = 338.0, p90 = 694.0, max = 1141.0, over_100ms = "1
 #     parking its radio between beacons. It has NOT been shown to be the cause
 #     of the documented Quick Share discovery flakiness; the two are only
 #     consistent. F1 tests it by repeating the measurement with the screen on.
+
+# *— end of report —*

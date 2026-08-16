@@ -71,3 +71,5 @@ status = "partial"
 method = "measured"
 tool = "pbpctrl 0.1.8"
 notes = "Combined figure only. No case reading."
+
+# *— end of report —*
