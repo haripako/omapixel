@@ -17,9 +17,8 @@ Every report therefore ends with `# *— end of report —*`, emitted by
 
 The rejection lives in `build-matrix.py` and is backend's; it was reverted once
 because the fixtures did not emit the marker. They do now. These are the
-negatives, `expectedFailure` until it lands — **when it does, unittest reports
-unexpected successes and the run fails**, which is the signal to remove the
-decorators.
+negatives; they were written before the rejection existed and went green when
+it landed, which is what says they can fail.
 
 Two traps, both verified, both failing in opposite directions:
 
@@ -92,17 +91,14 @@ class TruncatedReportsAreRefused(unittest.TestCase):
         cut = truncated(device_report(RESULT))
         self.assertIn("file-send", str(tomllib.loads(cut)))
 
-    @unittest.expectedFailure
     def test_a_report_without_the_marker_is_rejected(self):
         self.assert_rejected(truncated(device_report(RESULT)))
 
-    @unittest.expectedFailure
     def test_a_report_cut_before_its_results_is_rejected(self):
         """The damaging shape: it loads, and reports nothing its author measured."""
         cut = truncated(device_report(RESULT)).split("[[result]]")[0]
         self.assert_rejected(cut)
 
-    @unittest.expectedFailure
     def test_the_marker_must_be_last_not_merely_present(self):
         """The grep trap, in the form a real file would take.
 

@@ -27,7 +27,7 @@ from __future__ import annotations
 
 import unittest
 
-from tests.support import MINIMAL_CAPABILITIES, temp_data
+from tests.support import END_MARKER_LINE, MINIMAL_CAPABILITIES, temp_data
 
 REPORT = """
 schema = 1
@@ -50,6 +50,7 @@ status = "works"
 method = "measured"
 tool = {tool}
 notes = {notes}
+{end}
 """
 
 
@@ -63,7 +64,8 @@ def report(
     host: str = "",
 ) -> str:
     return REPORT.format(
-        handle=handle, vendor=vendor, model=model, tool=tool, notes=notes, host=host
+        handle=handle, vendor=vendor, model=model, tool=tool, notes=notes,
+        host=host, end=END_MARKER_LINE,
     )
 
 

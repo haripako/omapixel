@@ -167,17 +167,29 @@ method = "measured"
         self.assert_report_error(report, "[reporter].handle")
 
     def test_missing_device_section_is_rejected(self):
+        # Carries the end marker so that it fails for the missing [device]
+        # section and not for looking truncated: a negative test that passes
+        # for the wrong reason is not a test.
         report = """
 schema = 1
+origin = "device"
 
 [reporter]
 handle = "tester"
 date = "2026-08-15"
+# *— end of report —*
 """
         self.assert_report_error(report, "[device]")
 
     def test_broken_toml_names_the_file(self):
-        self.assert_report_error("this is not = = toml", "not valid TOML")
+        # Complete but unparseable: the marker is there so this fails at the
+        # parse and not at the truncation check, which runs first. A file that
+        # is both cut and malformed is reported as cut, which is the right
+        # order — "your file arrived incomplete" is the more actionable of the
+        # two, and re-sending it fixes both.
+        self.assert_report_error(
+            "this is not = = toml\n# *— end of report —*\n", "not valid TOML"
+        )
 
 
 class Summarise(unittest.TestCase):

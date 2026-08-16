@@ -30,7 +30,7 @@ from __future__ import annotations
 
 import unittest
 
-from tests.support import MINIMAL_CAPABILITIES, temp_data
+from tests.support import END_MARKER_LINE, MINIMAL_CAPABILITIES, temp_data
 
 RESULT = """
 [[result]]
@@ -56,6 +56,7 @@ vendor = "Google"
 model = "Pixel 7 Pro"
 os = "Android 17"
 {results}
+{END_MARKER_LINE}
 """
 
 
