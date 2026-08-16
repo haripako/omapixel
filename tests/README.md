@@ -19,6 +19,15 @@ seconds — or, when the HID profile fails to reattach, until somebody
 disconnects and reconnects it by hand. A suite meant to run continuously must
 not be able to do that to the person running it.
 
+The cause is no longer unknown: it is a BlueZ 5.87 bug, fixed upstream six days
+after the tag, and no release carries the fix yet. See
+[the roadmap](../docs/03-roadmap.md) and
+[the reference setup](../docs/04-reference-setup.md). **That changes nothing
+here.** The rule is not "avoid it until it is fixed" — a test suite has no
+business driving the radio in the first place, and the day a machine runs a
+fixed BlueZ is the day this rule stops being enforced by pain and starts being
+enforced only by the tests below.
+
 `test_hw_report.py` therefore replaces `PATH` entirely with a directory of
 stubs. Not shadowing — replacement. A command with no stub is not found rather
 than falling through to the real one, and the `bluetoothctl` stub exits 90 on
