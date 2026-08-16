@@ -23,6 +23,11 @@ var PRESENTATION = {
   no_answer:       { tone: "stalled", glyph: "!",  action: "start" },
   nothing_present: { tone: "empty",   glyph: "○",  action: "pair" },
   not_probed:      { tone: "held",    glyph: "?",  action: "allow" },
+  // Not an error and not permanent. "Wait", with a condition somebody can
+  // check. It clears on its own when the condition does — the gate is on a
+  // version, not on a tool — so drawing it as a red failure would be a lie in
+  // a few weeks' time.
+  blocked:         { tone: "waiting", glyph: "…",  action: "wait" },
 };
 
 // A status we do not know is not the same as a status we know to be bad. An
@@ -164,6 +169,13 @@ function slot(name, capability, nowMs, staleAfterSeconds) {
 
   var summary = capability.status === "ready" ? "ok"
               : capability.status.replace(/_/g, " ");
+
+  // `blocked` carries the two things that make waiting bearable: why, and
+  // until when. unblocked_by is written to be shown verbatim.
+  var st = capability.state || {};
+  if (capability.status === "blocked" && st.unblocked_by) {
+    summary = "waiting for " + st.unblocked_by.split(",")[0];
+  }
   var action = look.action;
 
   // Paired-but-unreachable outranks the generic status text, because it is the
@@ -192,6 +204,7 @@ function slot(name, capability, nowMs, staleAfterSeconds) {
     stale: fresh.known ? fresh.stale : null,
     // Never null: a consumer that forgets to check gets a qualifier rather
     // than silence, which is the safe direction.
+    unblockedBy: (capability.state || {}).unblocked_by || null,
     origin: originOf(capability),
     qualifier: trusted.qualifier,
     real: trusted.real,

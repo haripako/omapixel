@@ -39,7 +39,10 @@ BarWidget {
     // Rank by how much the user can do about it, not by severity. "Install a
     // package" is more actionable than "nothing paired", and that is the one
     // worth surfacing when the bar has room for one glyph.
-    var order = ["unsure", "stalled", "absent", "held", "empty", "normal"]
+    // "waiting" sits below everything actionable: an hourglass is not a thing
+    // the user can do anything about today, so it should not push aside a
+    // missing package they could install right now.
+    var order = ["unsure", "stalled", "absent", "held", "empty", "waiting", "normal"]
     var pick = null
     for (var i = 0; i < view.slots.length; i++) {
       var s = view.slots[i]
@@ -68,6 +71,7 @@ BarWidget {
       case "stalled": return "\uf0026"  // warning: it is there and not answering
       case "empty":   return "\uf00b2"  // bluetooth off: nothing paired, or out of range
       case "held":    return "\uf03e4"  // pause: deliberately not asked
+      case "waiting": return "\uf051f"  // hourglass: blocked on a condition, not broken
       default:        return "\uf02d7"  // question: we do not know, and say so
     }
   }
@@ -79,6 +83,7 @@ BarWidget {
     // never presented as a measurement. Absent origin degrades to unknown.
     if (s.qualifier) text += "  (" + s.qualifier + ")"
     if (s.stale === true) text += "  (stale)"
+    if (s.unblockedBy) text += "\n    clears when: " + s.unblockedBy
     if (s.detail) text += "\n    " + s.detail
     return text
   }
