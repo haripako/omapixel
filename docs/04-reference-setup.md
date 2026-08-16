@@ -181,11 +181,32 @@ code moved from `GSList` to `struct queue` — and it is confirmed here from the
 dumps rather than taken on trust.
 
 And the UUID names the trigger. `0xFE2C` is **Google Fast Pair**, which is the
-service `rquickshare` filters on. So the crash needs two things at once: a
-client registering a Fast Pair discovery filter, and any device at all
-advertising nearby. That is why it looked like launching `rquickshare` crashed
-`bluetoothd` — it registers the filter, and the next stranger's advertisement
-does the rest.
+service `rquickshare` filters on. That is why it looked like launching
+`rquickshare` crashed `bluetoothd` — it registers the filter, and the next
+stranger's advertisement does the rest.
+
+**The UUID comes from the client's filter, not from the air.** Worth checking
+rather than assuming, because it decides whether the crash can be dodged from
+our side. The advertisement being processed in the first dump is from a device
+called `PR BT 7152` and carries exactly one service:
+
+```
+p *(struct queue *)eir_data->services      -> {entries = 1}
+x/s …->head->data                          -> "4553867f-f809-49f4-aefc-e190a1f459f3"
+```
+
+A custom 128-bit UUID, not Fast Pair. So `0000fe2c…` is the needle the client
+asked BlueZ to look for, and `eir_data->services` is the haystack — which is
+what the swapped arguments confirm: the needle ends up where the comparison
+function belongs.
+
+**Two conditions have to hold at once**, and the second is easy to miss: a
+client registering a UUID discovery filter, **and** an advertisement that
+carries at least one service. An advertisement with an empty service list
+leaves `queue_find` with nothing to iterate, so the bad pointer is never
+called. That is measurable here — the crashing dumps all show `entries = 1` —
+and it explains why the crash is not instant: it waits for a neighbour that
+advertises services.
 
 **Fixed upstream, and not in the version installed here.** Derived from the
 GitHub API by the coordination agent on 2026-08-16: the fix is commit
