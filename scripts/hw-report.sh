@@ -78,6 +78,27 @@ bt() {
   timeout 5 bluetoothctl "$@" 2>/dev/null
 }
 
+# Prints a value that identifies the person running this, with the warning
+# attached to the line rather than left in the header.
+#
+# The header warns whoever ran the command; it never reaches whoever reads the
+# paste. People scroll, select the block they care about — which is this one —
+# and paste that, leaving the whole Tools section between the warning and the
+# data. Last night's defect was a warning that could be lost to a hang; this is
+# the same failure rotated, a warning that cannot be lost but can go
+# unselected. Raised by the security agent.
+#
+# Not marked when there is no value: "unknown (bluetooth service not running)
+# (identifies you)" claims that something unknown identifies you, which is the
+# kind of sentence this project spends its time deleting.
+identifying_line() {
+  local label=$1 value=$2
+  case "$value" in
+    unknown*|"") printf '  %-22s %s\n' "$label" "${value:-unknown}" ;;
+    *)           printf '  %-22s %-24s %s\n' "$label" "$value" "(identifies you)" ;;
+  esac
+}
+
 bt_available() {
   [ "$(systemctl is-active bluetooth 2>/dev/null)" = active ]
 }
@@ -114,10 +135,16 @@ bluez_version() { pacman -Q bluez 2>/dev/null | awk '{print $2}'; }
 # Adapter model rather than its MAC: the MAC identifies the machine.
 bt_mac() {
   bt_available || { echo "unknown (bluetooth service not running)"; return; }
-  local out
-  out=$(bt show | awk '/Controller/{print $2; exit}') \
-    || { echo "unknown (bluetoothctl timed out)"; return; }
-  echo "${out:-unknown}"
+  # Capture first, filter second. Not style: `bt show | awk '...{exit}'` closes
+  # the pipe early, bluetoothctl dies of SIGPIPE, and `pipefail` faithfully
+  # reports 141 for a pipeline that worked. The guard then printed "timed out"
+  # on a machine where bluetoothctl answers in 7 ms — a false failure, which is
+  # the one kind this script must not invent. Caught by reading the output on a
+  # working machine, after a review had cleared the function.
+  local out mac
+  out=$(bt show) || { echo "unknown (bluetoothctl timed out)"; return; }
+  mac=$(printf '%s\n' "$out" | awk '/Controller/{print $2; exit}')
+  echo "${mac:-unknown}"
 }
 
 bt_adapter() {
@@ -279,8 +306,17 @@ human)
   printf '  %-22s %s\n' "kernel"          "$(uname -r)"
   printf '  %-22s %s\n' "bluez"           "$(bluez_version)"
   printf '  %-22s %s\n' "bt adapter"      "$(bt_adapter)"
-  printf '  %-22s %s\n' "bt adapter mac"  "$(bt_mac)"
-  printf '  %-22s %s\n' "addresses"       "$(ip -4 -o addr show scope global 2>/dev/null | grep -vE ' (docker|br-|virbr|veth)' | awk '{print $2" "$4}' | paste -sd', ')"
+  # These two lines carry their own warning, because the header's does not
+  # travel with them. A header warns whoever ran the command; it never reaches
+  # whoever reads the paste. In a terminal people scroll, select the block they
+  # care about — which is this one — and paste that, leaving fifteen lines and
+  # the whole Tools section between the warning and the data. Last night's bug
+  # was that the warning could be lost to a hang; this is the same failure
+  # rotated: it cannot be lost now, but it can go unselected. These are the
+  # only two lines in the report that identify a person, so the marker is
+  # noise in exactly the right place. Raised by the security agent.
+  identifying_line "bt adapter mac" "$(bt_mac)"
+  identifying_line "addresses" "$(ip -4 -o addr show scope global 2>/dev/null | grep -vE ' (docker|br-|virbr|veth)' | awk '{print $2" "$4}' | paste -sd', ')"
   printf '  %-22s %s\n' "wireless"        "$(wifi_state)"
   printf '  %-22s %s\n' "google paired"   "$(google_paired)"
   printf '  %-22s %s\n' "pixel over usb"  "$(pixel_usb)"
