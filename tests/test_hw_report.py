@@ -148,8 +148,15 @@ class HwReport(unittest.TestCase):
         result = self.run_script()
         self.assertIn("sudo pacman -S", result.stdout)
         self.assertIn("yay -S", result.stdout)
-        self.assertIn("pbpctrl had not been updated", result.stdout,
-                      "the AUR staleness warning went missing")
+        # The warning has to exist; its wording is not the invariant. It used to
+        # say pbpctrl might not build, which the advisor then measured as false
+        # — it builds in about 48 s — and it will change again when the Pro 2
+        # arrive and the other half of the question gets an answer. Pinning
+        # prose that is known to be provisional turns a test into a reminder to
+        # edit it.
+        self.assertIn("pbpctrl", result.stdout)
+        self.assertIn("Buds Pro 2", result.stdout,
+                      "the warning no longer says what is actually unknown")
 
     def test_nothing_to_install_is_said_plainly(self):
         present = {name: "#!/bin/sh\n" for name in
@@ -287,6 +294,32 @@ class ScriptsNeverActOnTheSystem(unittest.TestCase):
                     pattern.search(line),
                     f"{path.name}:{number} changes Bluetooth state:\n  {line.strip()}",
                 )
+
+    def test_no_script_ever_prints_a_partial_upgrade(self):
+        """`pacman -Sy` without `u` is the classic way to break an Arch.
+
+        It refreshes the databases and installs against them without upgrading
+        the rest of the system, which leaves a machine half on one repository
+        state and half on another. It matters here because pacman *itself*
+        suggests it: on a freshly installed Omarchy the databases are empty, a
+        plain `-S` says "target not found", and the error text advises `-Sy`.
+        A contributor following our output and then following that advice ends
+        up with a broken system because of us.
+
+        This one scans printed lines too — unlike the rules above, the whole
+        point is what we tell somebody else to type.
+        """
+        pattern = re.compile(r"pacman\s+-S([A-Za-z]*)")
+        for path in self.scripts():
+            for number, line in enumerate(path.read_text().splitlines(), start=1):
+                for match in pattern.finditer(line):
+                    flags = match.group(1)
+                    if "y" not in flags or "u" in flags:
+                        continue
+                    self.fail(
+                        f"{path.name}:{number} prints `pacman -S{flags}`, a "
+                        f"partial upgrade:\n  {line.strip()}"
+                    )
 
     def test_no_script_calls_a_hardware_tool_by_absolute_path(self):
         """The lock that keeps the sandbox argument true.
