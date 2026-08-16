@@ -50,4 +50,11 @@ rtt_ms = { min = 4.8, median = 338.0, p90 = 694.0, max = 1141.0, over_100ms = "1
 #     of the documented Quick Share discovery flakiness; the two are only
 #     consistent. F1 tests it by repeating the measurement with the screen on.
 
+[[result]]
+id = "notifications"
+status = "partial"
+method = "measured"
+tool = "kdeconnect 26.04.3-1"
+notes = "Measured 2026-08-17. Four notifications from the phone reached the desktop and are readable over D-Bus with their originating app: Netflix, System UI, YouTube Music. That is the transport half. The caveat is the other half: this desktop's notification server is Quickshell, which keeps no queryable history, so whether they were drawn on screen was not verified in pixels. Also, the link ran over Tailscale via a relay, not over the LAN, so nothing here says the LAN path works."
+
 # *— end of report —*
