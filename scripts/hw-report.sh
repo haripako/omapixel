@@ -43,6 +43,20 @@ OK=$'\033[32m+\033[0m'; NO=$'\033[31m-\033[0m'; WARN=$'\033[33m!\033[0m'
 #
 # Visible rather than an HTML comment: GitHub renders the report, and a comment
 # would be invisible in exactly the place it is most needed.
+#
+# CHECKING FOR IT: match the last non-blank line exactly, not a substring, and
+# not a grep over the whole text. The markdown header quotes this marker in
+# order to announce it, so markdown contains it twice — a report cut off just
+# after the header still has "end of report" in its last line and would pass a
+# substring check. --toml emits it once, at the end, with no announcement,
+# which is why a check over data/devices/*.toml can afford the loose form. That
+# difference is invisible from the checking side and is the trap waiting for
+# whoever extends this to pasted markdown. Verified 2026-08-16: toml 1
+# occurrence, markdown 2.
+#
+# Read the raw text, too: in --toml the marker is a comment, and tomllib drops
+# comments, so a check over the parsed dict would never find it and would call
+# every report truncated.
 END_MARK='*— end of report —*'
 
 # Every bluetoothctl call goes through here, and none of them may block.
