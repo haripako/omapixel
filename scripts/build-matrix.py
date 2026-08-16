@@ -270,37 +270,51 @@ def device_label(report: dict) -> str:
 def summarise(cap_id: str, reports: list[dict]) -> str:
     """One cell: the spread of reported statuses, worst first."""
     counts: dict[str, int] = {}
-    origins: set[str] = set()
-    measured_on_hardware = False
+    # Qualification is per result, not per cell. It used to be a single flag:
+    # one real measurement anywhere in the cell and the whole cell rendered
+    # bare, so an emulator result sitting next to a hardware one was laundered
+    # into looking like hardware. Worst with mixed statuses — a `broken`
+    # measured on the device was enough to make a `works` from the emulator
+    # appear as "broken 1, works 1", which reads as "it works sometimes on real
+    # hardware" and is a claim nobody made. Found by QA.
+    #
+    # The erosion this guards against arrives by both doors: a cell with no
+    # measurement at all, and a cell with one measurement that covers for the
+    # rest. Counting is what closes the second.
+    unqualified: dict[str, int] = {}
     for report in reports:
         for result in report["results"]:
-            if result["id"] == cap_id:
-                counts[result["status"]] = counts.get(result["status"], 0) + 1
-                origins.add(report["origin"])
-                # "measured" is a claim about method; it only becomes a claim
-                # about hardware when the report says it ran on hardware. A run
-                # against the emulator is measured — of the emulator.
-                if result["method"] == "measured" and report["origin"] == "device":
-                    measured_on_hardware = True
+            if result["id"] != cap_id:
+                continue
+            counts[result["status"]] = counts.get(result["status"], 0) + 1
+            # "measured" is a claim about method; it only becomes a claim about
+            # hardware when the report says it ran on hardware. A run against
+            # the emulator is measured — of the emulator.
+            if report["origin"] == "emulator":
+                why = "emulator"
+            elif report["origin"] == "unknown":
+                why = "origin unknown"
+            elif result["method"] != "measured":
+                why = "derived"
+            else:
+                continue
+            unqualified[why] = unqualified.get(why, 0) + 1
 
     if not counts:
         return "untested"
 
+    total = sum(counts.values())
     parts = [f"{status} {counts[status]}" for status in STATUS_ORDER if status in counts]
     cell = ", ".join(parts)
-    if measured_on_hardware:
+    if not unqualified:
         return cell
-    # Anything that is not a measurement on real hardware says which kind of
-    # not-a-measurement it is. The emulator is going to be the cheapest thing
-    # in this project to run and the only one always available while the
-    # hardware is missing, so the erosion will not come from bad faith — it
-    # will come from it being easy. An unqualified cell is the whole way it
-    # erodes.
-    if "emulator" in origins:
-        return f"{cell} (emulator)"
-    if "unknown" in origins:
-        return f"{cell} (origin unknown)"
-    return f"{cell} (derived)"
+    # One kind covering every result in the cell needs no count: "(emulator)"
+    # already says all of it. A mix does, because the reader's question is which
+    # of these numbers came from where.
+    if len(unqualified) == 1 and sum(unqualified.values()) == total:
+        return f"{cell} ({next(iter(unqualified))})"
+    bits = [f"{n} {why}" for why, n in sorted(unqualified.items())]
+    return f"{cell} ({', '.join(bits)})"
 
 
 def render(caps: list[dict], reports: list[dict]) -> str:
