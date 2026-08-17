@@ -109,6 +109,23 @@ function freshness(asOf, nowMs, staleAfterSeconds) {
 // status means nothing, and a disagreement between them is a defect in the
 // status rather than a hint to read the state.
 
+// --- how old, in words --------------------------------------------------------
+
+// Design's ruling, and it is stricter than what this file did before: past the
+// freshness window the age is shown NEXT TO the value, not instead of it. A
+// remembered number drawn as a current one is the plausible zero again wearing
+// a timestamp it hid — and a tone change alone cannot say how stale "stale" is.
+// "84 %, 6 min ago" answers that; a dimmer 84 % does not.
+function ageLabel(seconds) {
+  if (seconds === null || seconds === undefined) return null;
+  if (seconds < 45) return "just now";
+  if (seconds < 90) return "1 min ago";
+  if (seconds < 3600) return Math.round(seconds / 60) + " min ago";
+  if (seconds < 7200) return "1 hour ago";
+  if (seconds < 86400) return Math.round(seconds / 3600) + " hours ago";
+  return "over a day ago";
+}
+
 // --- origin -------------------------------------------------------------------
 
 // device | emulator | unknown. Absent counts as unknown, never as device.
@@ -224,6 +241,10 @@ function slot(name, capability, nowMs, staleAfterSeconds) {
     action: action,
     ageSeconds: fresh.ageSeconds,
     stale: fresh.known ? fresh.stale : null,
+    // Only carried when it changes what should be drawn: past the window, or
+    // when there is no stamp at all. A fresh reading needs no caveat.
+    age: fresh.known ? (fresh.stale ? ageLabel(fresh.ageSeconds) : null)
+                     : "age unknown",
     // Never null: a consumer that forgets to check gets a qualifier rather
     // than silence, which is the safe direction.
     unblockedBy: (capability.state || {}).unblocked_by || null,

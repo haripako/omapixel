@@ -88,7 +88,9 @@ BarWidget {
     // A reading from the emulator, or one whose origin nobody declared, is
     // never presented as a measurement. Absent origin degrades to unknown.
     if (s.qualifier) text += "  (" + s.qualifier + ")"
-    if (s.stale === true) text += "  (stale)"
+    // Next to the value, never instead of it: design's ruling on as_of. How
+    // stale matters as much as whether, and a tone change cannot say "6 min".
+    if (s.age) text += "  (" + s.age + ")"
     if (s.unblockedBy) text += "\n    clears when: " + s.unblockedBy
     if (s.detail) text += "\n    " + s.detail
     // An action nobody can find is not an action. Both halves are listed: what
