@@ -46,6 +46,13 @@ repeated. See [conventions](docs/conventions.md).
 **None of these install anything.** `hw-report.sh` prints the exact commands it
 would need and stops; running them is your decision.
 
+**Set something up and nothing happens?** The failures worth knowing about are
+the ones that produce no error at all — `ufw` silently dropping ports 1714-1764
+so KDE Connect discovers nothing, a subnet that looks right while the device is
+unreachable, a USB mode that exposes no interface. They are collected in
+[failures that look like nothing happening](docs/05-packaging.md#failures-that-look-like-nothing-happening).
+Read that before concluding the problem is your hardware.
+
 ```bash
 scripts/hw-report.sh              # check this machine
 scripts/hw-report.sh --markdown   # block to paste into a hardware report issue
