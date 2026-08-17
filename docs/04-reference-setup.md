@@ -246,7 +246,8 @@ So the recovery is a disconnect, a genuine pause, and one connect. Retrying
 faster is actively counterproductive:
 
 ```bash
-bluetoothctl disconnect [mac redacted]; sleep 15; bluetoothctl connect [mac redacted]
+MOUSE=AA:BB:CC:DD:EE:FF   # yours: bluetoothctl devices Paired
+bluetoothctl disconnect "$MOUSE"; sleep 15; bluetoothctl connect "$MOUSE"
 ```
 
 **That recovery is for a crash, and it does not cover a blocked radio. Measured

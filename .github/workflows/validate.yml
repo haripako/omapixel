@@ -73,7 +73,7 @@ jobs:
       # The MAC-address and host-IP invariant used to live here as a grep. It
       # now lives in tests/test_repo_invariants.py, which is strictly better:
       # it has positive controls proving the detector catches a report that
-      # does leak, including subnet = "[ip redacted]/24" — a host address that
+      # does leak, including subnet = "192.0.2.34/24" — a host address that
       # the old grep accepted because it only looked at the /NN suffix.
       #
       # Deliberately not kept in both places. One invariant implemented twice
