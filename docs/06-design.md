@@ -464,6 +464,23 @@ Design cannot mark a distinction the data does not carry, so this is the one
 thing the interface layer must insist on before anything else in the contract
 gets settled.
 
+## Three contract fields, and how they get drawn
+
+The status contract now carries `reachable` apart from `devices`, an `as_of` per
+capability, and an `origin` of `device` | `emulator` | `unknown`. All three came
+out of the provenance rule, and all three are useless unless the interface draws
+the distinction they encode. The rulings, so nobody has to ask:
+
+| Field | The distinction | How it is drawn |
+|---|---|---|
+| `devices` empty vs `reachable` false | "Nothing is paired" vs "paired, out of range". Two different problems with two different fixes — one needs pairing, the other needs walking closer or turning the thing on | Never collapse both into "disconnected". The unpaired case is a setup state and may offer the setup action; the unreachable case names the device and stays quiet. A user who is told to pair something already paired will pair it twice |
+| `as_of` | A number that is current vs one that is remembered | Past a freshness window, the age is shown next to the value, not instead of it — "84 %, 6 min ago". A remembered value drawn as current is the plausible zero again, wearing a timestamp it hid |
+| `origin` | Where the value came from | `device` draws normally. `emulator` draws marked, per the simulated-data rule. **`unknown` draws as unknown** — and absent field means `unknown`, never `device` |
+
+The freshness window is not set here: it belongs to whoever knows how often each
+value actually refreshes, which is backend. Design's requirement is only that
+one exists and that crossing it changes what is drawn.
+
 ## The screen is an exposure surface
 
 Everything else in this document treats the display as somewhere to present

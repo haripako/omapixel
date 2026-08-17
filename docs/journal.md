@@ -76,6 +76,35 @@ reports something it did not do. Here **the tool fails silently and the consumer
 fills the hole with the nearest available value** — which is always the
 plausible one, and therefore the one nobody questions.
 
+**measured in a clean VM, and it retires an inference that has been repeated
+since day one** — `pbpctrl` **0.1.8-1 builds and installs from the AUR without
+touching anything**, on Omarchy 4.0.0, kernel 7.1.8-arch1-3, measured
+2026-08-16.
+
+The 482 days without an update remain true. What falls is the conclusion drawn
+from them — *"it may not build against current Rust"* — which was an inference,
+was written as one, and turns out to be wrong. It has been repeated in this
+repository, in the roadmap and in the packaging notes, as a reason to plan for a
+fallback.
+
+And the limit of the new claim, stated by the person who measured it: **it
+compiles. It has not been run.** Nothing here says it speaks to a pair of
+earbuds, which is the actual open question and still needs the hardware.
+
+**decisions — how the three new contract fields get drawn** — `devices` empty
+and `reachable` false are **two different problems with two different fixes**,
+and neither collapses into "disconnected". `as_of` shows the age **beside** the
+value, never instead of it. `origin` reads `unknown` when the field is missing.
+All three are the same rule as above, applied at the drawing layer rather than
+at the data layer: **the surface must not invent a meaning the data did not
+carry.**
+
+**decisions — what a surface may expose** — Notification *content* defaults to
+the discreet end. **No surface ever draws the clipboard.** And receive
+visibility is the only F4 widget that is **a control rather than an indicator**,
+which is why it is the only one that can change the machine's state from the
+bar.
+
 **decision, about which source counts** — **When the datum exists in the API, the
 rendered page is not equivalent evidence.** The case: creating issues was
 reported as *restricted* on a repository, read off the web page. The API says

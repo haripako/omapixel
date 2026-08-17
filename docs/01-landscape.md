@@ -85,8 +85,21 @@ reference implementation. Reads detailed battery levels, hardware and software
 information, and both reads and changes settings: ANC state and equaliser. It
 targets the Pixel Buds Pro; with other models the README says it "may or may not
 work". In the AUR as `pbpctrl` 0.1.8 and `pbpctrl-git`, **both untouched for 482
-days** as of the query date — the project looks stalled, which is a risk worth
-planning around. There is also `pbpctrl-plasmoid`, a Plasma widget: not directly
+days** as of the query date.
+
+**Measured against a clean VM on 16 August 2026, by the end-user agent:**
+`pbpctrl` 0.1.8-1 builds and installs from the AUR untouched, in 49 seconds
+wall-clock, on Omarchy 4.0.0 (ISO of 14 Aug 2026) with kernel 7.1.8-arch1-3.
+`pacman -Q pbpctrl` returns `pbpctrl 0.1.8-1`. The 482 days are still true; the
+inference drawn from them here — that a stalled package probably would not build
+— was wrong. It was not run: the ban on touching anything BLE stands, so this
+says the package compiles and nothing about whether it talks to anything.
+
+Two halves, and only one is closed. Whether it still builds: yes, today. Whether
+it speaks to Buds Pro 2, which use a different SoC: unanswerable in a VM and
+waiting on hardware. And this is a fact with a shorter shelf life than most —
+what compiles against today's Arch can break on the next dependency change,
+precisely because nobody is maintaining the package. There is also `pbpctrl-plasmoid`, a Plasma widget: not directly
 useful here, but a reference for how to consume the data.
 
 **BudsLink** — much newer, with press coverage in June 2026. Graphical

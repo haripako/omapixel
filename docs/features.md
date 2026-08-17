@@ -117,7 +117,10 @@ This is the section with the most Apple features and the least Linux tooling, an
 it is [F3](03-roadmap.md#f3--pixel-buds) — the phase already flagged as the
 riskiest. `pbpctrl` targets the first-generation Pixel Buds Pro and had not been
 updated in 482 days as of the landscape query; the Buds Pro 2 use a different
-SoC. Every row below is conditional on something responding at all.
+SoC. Half of that risk is now closed: **measured in a clean VM on 16 Aug 2026 —
+Omarchy 4.0.0, kernel 7.1.8-arch1-3 — `pbpctrl` 0.1.8-1 builds and installs from
+the AUR untouched.** It was not run, so it says nothing about whether it speaks
+to any earbuds, which is the half that needs hardware. Every row below is conditional on something responding at all.
 
 As of the night of 15 August 2026 it is conditional on something further down,
 too. **Measured by another contributor on the reference machine:** `bluetoothd`
