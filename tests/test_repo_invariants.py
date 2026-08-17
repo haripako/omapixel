@@ -196,6 +196,56 @@ class PrivacyOfPublishedReports(unittest.TestCase):
         text = (DOCS / "02-capability-matrix.md").read_text()
         self.assertEqual(privacy_violations(text), [])
 
+    def test_what_is_committed_is_clean_not_only_the_working_tree(self):
+        """The working tree is not what gets published; the commit is.
+
+        Raised by code review on 2026-08-17, and measured: a redaction had
+        landed in the working tree while the committed blob — and the sha the
+        remote was serving — still carried the real address. Every sweep in
+        this file read files from disk, so all of them were green over a HEAD
+        that leaked.
+
+        This reads the committed content instead. It cannot undo anything
+        already pushed — published is published — but it fails before the next
+        push, which is the only moment a fix is still possible.
+        """
+        import subprocess
+
+        listing = subprocess.run(
+            # docs, data and .github: the published documents, the reports a
+            # stranger writes, and the workflow file that already carried a
+            # real host IP once. Deliberately not scripts/ — their comments
+            # discuss addressing ("zeroing the fourth octet of a /16 yields
+            # 10.1.2.0/16, which is not that network"), and a sweep over prose
+            # about addresses produces false positives that would get this
+            # invariant relaxed. Scripts are covered by the static rules in
+            # test_hw_report.py instead.
+            ["git", "ls-tree", "-r", "--name-only", "HEAD", "docs", "data",
+             ".github"],
+            capture_output=True, text=True, cwd=ROOT,
+        )
+        if listing.returncode != 0:
+            self.skipTest("not a git checkout")
+
+        for name in listing.stdout.split():
+            blob = subprocess.run(
+                ["git", "show", f"HEAD:{name}"],
+                capture_output=True, text=True, cwd=ROOT,
+            )
+            if blob.returncode != 0:
+                continue
+            found = [item for item in privacy_violations(blob.stdout)
+                     if PLACEHOLDER_MAC not in item]
+            with self.subTest(file=name):
+                if found:
+                    self.fail(
+                        f"the committed {name} leaks {', '.join(found)}.\n"
+                        f"The working tree may already be clean — that is not "
+                        f"what gets pushed. Amend or commit the redaction "
+                        f"before this reaches the remote, because afterwards "
+                        f"there is no fix: published is published."
+                    )
+
     def test_no_document_we_write_ourselves_leaks_either(self):
         """The discipline was on the stranger's input, not on our own output.
 
