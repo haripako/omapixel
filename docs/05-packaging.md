@@ -104,6 +104,16 @@ after 582 crates. `r-quick-share-bin` is the same 0.11.5, prebuilt.
 without an AUR update. It targets first-generation Pixel Buds Pro; the Pro 2 use
 a different SoC.
 
+**One half of that risk is now measured away, and only one half.** `pbpctrl
+0.1.8-1` builds and installs from the AUR in about 48 seconds — measured
+2026-08-16 in a clean Omarchy 4.0.0 VM, kernel 7.1.8-arch1-3, nothing pinned or
+patched. What is gone is the *inference* that 482 stale days probably meant it
+no longer compiled. The staleness itself is unchanged, and it was never run: it
+builds, it has not spoken to a pair of earbuds. So the honest sentence is
+"builds against the current AUR, measured on that date, still 482 days stale,
+untested against hardware" — a refuted inference becomes a narrower fact, not
+its opposite, and not-yet-tried is not the same as working.
+
 ## Failures that look like nothing happening
 
 | | |
