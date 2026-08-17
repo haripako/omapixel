@@ -431,3 +431,29 @@ here.
 `devices` and `reachable`, which closes that loop: the contract was written
 against a machine where nothing was paired, and it did not need a change when
 something finally was.
+
+## The notification server on Omarchy is Quickshell itself
+
+**Measured 2026-08-17.** First established by the desktop-layer agent and
+reproduced here before being written down, since this is a claim about the
+machine rather than about a document.
+
+```
+$ busctl --user call org.freedesktop.Notifications /org/freedesktop/Notifications \
+    org.freedesktop.Notifications GetServerInformation
+ssss "quickshell" "quickshell" "" "1.2"
+```
+
+No separate notification daemon is running — no mako, dunst, swaync or
+xfce4-notifyd — so there is nothing for the bar to collide with. It declares
+six capabilities: `persistence`, `body`, `body-markup`, `body-hyperlinks`,
+`actions`, `icon-static`.
+
+Worth publishing because no Omarchy documentation says it, and anyone building
+a notification-facing feature on this desktop has to guess otherwise. It also
+sets the limit on what can be checked from a terminal: Quickshell keeps no
+queryable history, so **whether a notification was drawn cannot be established
+by asking anything.** That is why the `notifications` row stays `partial`. The
+transport half is measured, the drawing half has a written reason rather than a
+blank, and closing it needs the screen — which is the user's to authorise, not
+ours to assume.
