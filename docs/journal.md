@@ -76,6 +76,160 @@ reports something it did not do. Here **the tool fails silently and the consumer
 fills the hole with the nearest available value** — which is always the
 plausible one, and therefore the one nobody questions.
 
+**incident — this journal was leaking the very thing it documents, and the
+invariant could not see it** — An audit of this file with the project's own
+`privacy_violations()` found two real Bluetooth MAC addresses **with the device
+names beside them**, pasted verbatim as command output, and the host's real IP
+address — the latter inside the entry that describes the hole in the privacy
+grep. **The record of the leak contained the address it was describing.**
+Redacted: MACs replaced with placeholders, and the illustrative address
+rewritten as an RFC 5737 documentation address, which demonstrates the bug just
+as well and identifies nothing.
+
+The structural half matters more than the incident. **The privacy invariant only
+walks `data/devices/` and the generated matrix. `docs/` is never checked.** So
+the discipline was applied to the stranger's input and not to the documents we
+write by hand — and the file that leaked was ours, not a contributor's. A
+MAC paired with a device name is also the blind spot the detector deliberately
+cannot catch, since twelve hex digits match half the logs in the world.
+
+Two lessons, and the second is the one that generalises: **an invariant tells
+you where its author expected the danger to be**, and here it was pointed
+entirely outward. And **the person who writes the rules is not exempt from
+them** — this file spent three days recording that principle while breaking it
+on line 691.
+
+**measured against the published branch — CI enforces a rule contributors are
+never told about and cannot reproduce** — `.github/workflows/validate.yml:59`
+runs `shellcheck --severity=warning` on the report script, and
+`CONTRIBUTING.md` mentions shellcheck, linting or CI **nowhere**: grepping the
+published file returns zero lines. So a stranger's first shell pull request
+fails on a rule nobody stated — and `shellcheck` is not installed on the
+reference machine either, so it cannot be reproduced locally before pushing.
+Read off `origin/main` after a fetch, not off a local copy.
+
+**usability finding, explicitly not a measurement** — The report script
+recommends the source build of `r-quick-share` when a prebuilt package of the
+same 0.11.5 exists, and [packaging](05-packaging.md) itself calls that path "a
+lost user". The 582-crate figure behind that judgement comes from that document,
+not from the person reporting this, who has not compiled it. **Refutable two
+ways**, both cheap in a VM: the prebuilt package being behind, or the source
+build now being quick.
+
+**usability finding about plan coherence** — "Must not assume `pacman`,
+Hyprland or systemd" is filed as a requirement of the **future product**, while
+the script handed to strangers **today** prints `pacman` and `yay`, and
+`CONTRIBUTING.md` invites people on other distributions. Refutable by deciding
+the report script is not part of what gets handed out.
+
+**measured on this machine — a pattern that matches its own command line** —
+`pkill -f` and `pgrep -f` match the command line of the very shell running them,
+so a pattern that appears in the command kills or counts the process that issued
+it. `pkill -f 'notify-probe.sh'` from a shell whose command contained that
+string killed the shell, not the probe; `pgrep -f 'cargo build|rustc'` reported
+"still compiling" fifteen minutes after the package had finished installing.
+**`pkill -x` and `pgrep -x` compare the process name and do not have this
+property.** Three occurrences in this project. Not tried on other shells or
+other `procps` versions.
+
+**measured against a clean VM — the install command this repository hands
+strangers does not work** — `sudo pacman -S kdeconnect android-tools scrcpy`,
+exactly as the script prints it, **fails on a freshly installed Omarchy**: the
+package databases are empty, so every target is not found. Worse, the hint
+pushes the reader towards `-Sy`, which is a **partial upgrade** — the one thing
+Arch tells you never to do. We were handing that to people who have just
+arrived.
+
+**measured against a clean VM** — `pbpctrl` 0.1.8-1 builds from the AUR in
+`real 0m48.685s`. That closes **half** of the F3 question. The other half —
+whether it speaks to Buds Pro 2 — still waits on hardware and cannot be reasoned
+into existence.
+
+**refuted, by the person who predicted it** — `git` (2.55.0) and `yay` ship with
+Omarchy; both had been predicted as missing prerequisites.
+
+**open — the bar widget has never been seen on a bar** — Its logic is tested
+with `node`, its glyphs were checked at bar size with ImageMagick, its manifest
+passes the validator, and `Panel.qml` is pixels only so the logic can be tested
+without a compositor. **None of that is the same as having rendered.** Enabling
+it needs a shell restart, which blanks the maintainer's bar for a few seconds,
+so it needs his say-so. It is the only part of F4 that cannot be closed
+unilaterally.
+
+**decision, and the deleted code is the interesting part** — Code that read the
+`state` to work out `unreachable` was **deleted although it produced correct
+output**, because it was correct by **not** following the contract. Getting the
+right answer through the wrong field is a defect that only shows up later, when
+the field changes.
+
+**open, and it is the gap that produces the bad screenshot** — `origin` is
+needed **per peer in the list**, not per capability. Once discovery exists the
+list will mix a real Pixel and the emulator, and today the bar could not tell
+them apart. That is precisely the screenshot that ends up in an issue as
+evidence of something nobody measured. Requested; not yet delivered. Meanwhile
+`origin` always arrives `unknown`, and the defensive reading — absent is
+`unknown`, never `device` — **must not be relaxed** when it starts being
+emitted.
+
+**measured, and it joins the catalogue in its purest form yet** — **A string
+replacement that matches nothing is a no-op that reports success.** It silently
+deleted an entire function, and the only reason anybody found out was a
+`ReferenceError` in the tests. Same shape as every other entry in this family:
+**the failure to do something was indistinguishable from having done it.**
+
+Alongside it, three occasions in this project where `pkill -f` matched the
+shell that issued it, two of them by the same person. A pattern that matches
+itself is not an edge case; it is the normal outcome.
+
+**measured — the first two capabilities in the project, and what they do not
+say** — Both `partial`, and **both over Tailscale rather than the LAN**. That
+last point was established with `ip route`, **not** with `kdeconnect-cli`, which
+calls the link "LAN" and is wrong — one more tool describing something it is not
+doing.
+
+- **`notifications`** — they arrive at the desktop with their originating app.
+  The other half, whether they are **drawn**, is not closed: the notification
+  server here is Quickshell 1.2 and keeps no queryable history, so the only way
+  to close it is to look at the screen, and that needs the maintainer's say-so.
+- **`clipboard`** — text copied on the phone appeared here: 15 bytes, an exact
+  match against the agreed string. **Only phone → PC.** The return direction
+  needs ADB.
+
+**measured, and the distinction is the whole entry** — File transfer is
+**untested, not broken**. Nothing arrived, **and** `kdeconnectd` logged zero
+mentions of `share` or `sftp` in the window. That second half is what turns
+"nothing happened" into a claim: **nothing reached this host**, rather than
+something arriving and being lost. The only reading compatible with both is that
+the send never left the phone.
+
+**measured — and this one was in the tool chosen to verify effects** —
+KDE Connect's `--mount` **does not mount, and `--get-mount-point` returns a path
+regardless.** The directory exists, is empty, is absent from `/proc/mounts`, and
+`mountpoint` denies it. Cause: **`sshfs` is not installed**, and the journal says
+so — "failed to start sshfs".
+
+A script that ran `--mount` and then looked in the directory would conclude
+**"the phone has no files"**. It is the familiar pattern, arrived at its worst
+possible location: **the instrument being used to check whether something really
+happened**. Blocked on installing `sshfs`.
+
+**measured, and nobody may write "it works over Tailscale" until it is
+characterised** — The link **drops on its own and does not come back on its
+own**: two drops in a few hours, each restored by an explicit retry in under
+twelve seconds. A capability that needs a manual repair twice an afternoon is
+not the same as one that holds. There is no periodic probe yet, so the
+**frequency is unmeasured**.
+
+**measured, before anything was installed** — Headroom on this machine: 15.4 GiB
+of VRAM free, but **6733 MiB already evicted to zram** under ordinary load with
+no model running. The largest consumer is **ours**: the advisor's VM, at
+5.8 GiB. What is deliberately **not** stated: what happens to the compositor
+when the GPU saturates. That is a measurement, not something to reason out.
+
+**decision — two new values in the status vocabulary**, `blocked` and
+`unreachable`, under the rule they were written to satisfy: **if you need the
+`state` to know what the `status` means, the `status` means nothing.**
+
 **measured in a clean VM, and it retires an inference that has been repeated
 since day one** — `pbpctrl` **0.1.8-1 builds and installs from the AUR without
 touching anything**, on Omarchy 4.0.0, kernel 7.1.8-arch1-3, measured
@@ -557,8 +711,8 @@ adapter was not blocked:
 
 ```
 $ bluetoothctl devices Connected
-Device [mac redacted] MX Master 3S
-Device [mac redacted] Xbox Wireless Headset
+Device <mac-1> <mouse>
+Device <mac-2> <headset>
 
 $ rfkill list bluetooth
 0: hci0: Bluetooth
@@ -631,10 +785,11 @@ expected failures, 0.9 s. Reproduce with `./scripts/run-tests.sh` from the root.
 Standard library only, no network, no pytest. Python 3.14.7 here; CI runs 3.12,
 so the two are not the same measurement.
 
-**measured** — A real hole in CI's privacy grep: `subnet = "[ip redacted]/24"`
-passed it, because the check only looked for the `/NN` suffix and never checked
-that the host part was zero. That is precisely the address the rule exists to
-keep out of public reports.
+**measured** — A real hole in CI's privacy grep: an address of the form
+`subnet = "192.0.2.34/24"` passed it, because the check only looked for the
+`/NN` suffix and never checked that the host part was zero. That is precisely
+the shape the rule exists to keep out of public reports. (Written here with a
+documentation address, RFC 5737; the case that found it used a real one.)
 
 **measured, and it corrects the entry above** — The replacement detector was
 then attacked rather than trusted, and **it failed open in seven further ways**:
@@ -674,8 +829,7 @@ and it was on its way into the record as established. Verified here by reading
 both files before writing this down.
 
 **decision** — The privacy rule for device reports is never softened to a
-warning, and never "fixed" by normalising `[ip redacted]/24` into
-`192.168.10.0/24`. **The address has already travelled in the contributor's pull
+warning, and never "fixed" by normalising a host address into its subnet. **The address has already travelled in the contributor's pull
 request**; masking it hides the leak without undoing it. It is rejected loudly
 and the sender is told. Written into the docstring and the test so it survives
 the reader who finds it pedantic.
