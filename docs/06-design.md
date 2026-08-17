@@ -354,9 +354,21 @@ matrix cells themselves come from device reports in `data/devices/`.
 - `required` — the surface has no meaning without it. Only legal once the matrix
   shows the capability measured `works` or `partial` on real hardware.
 
-Today every row is `enhancement`, because today nothing is measured. A row that
-turns `required` before its capability does is the failure mode this table
-exists to catch.
+Every row is `enhancement` today, and two of them now have measured results
+rather than none: as of 17 August 2026 `notifications` and `clipboard` are
+`partial`, measured with `kdeconnect 26.04.3-1`. Neither is promoted, and the
+reasons are worth reading before anyone argues they should be — the link ran
+over a Tailscale relay rather than the LAN, so nothing there says the LAN path
+works, and for `notifications` the transport was verified over D-Bus while
+whether anything was drawn on screen was not. **A capability measured `partial`
+over a path the product will not use does not carry a surface yet.** A row that
+turns `required` before its capability does is the failure mode this table exists
+to catch.
+
+And the converse, which is the one that will be argued: **a measurement arriving
+does not create a surface.** `clipboard` is measured now and still has no surface
+here, because the reason it has none is the exposure rule further down, not a
+lack of data. Evidence promotes reliance; it does not overrule a prohibition.
 
 <!-- design-assumptions: one capability id per row; ids must exist in data/capabilities.toml -->
 
@@ -474,12 +486,26 @@ the distinction they encode. The rulings, so nobody has to ask:
 | Field | The distinction | How it is drawn |
 |---|---|---|
 | `devices` empty vs `reachable` false | "Nothing is paired" vs "paired, out of range". Two different problems with two different fixes — one needs pairing, the other needs walking closer or turning the thing on | Never collapse both into "disconnected". The unpaired case is a setup state and may offer the setup action; the unreachable case names the device and stays quiet. A user who is told to pair something already paired will pair it twice |
-| `as_of` | A number that is current vs one that is remembered | Past a freshness window, the age is shown next to the value, not instead of it — "84 %, 6 min ago". A remembered value drawn as current is the plausible zero again, wearing a timestamp it hid |
+| `as_of` | A number that is current vs one that is remembered | Three tiers, below. A remembered value drawn as current is the plausible zero again, wearing a timestamp it hid |
 | `origin` | Where the value came from | `device` draws normally. `emulator` draws marked, per the simulated-data rule. **`unknown` draws as unknown** — and absent field means `unknown`, never `device` |
 
-The freshness window is not set here: it belongs to whoever knows how often each
-value actually refreshes, which is backend. Design's requirement is only that
-one exists and that crossing it changes what is drawn.
+### What crossing the freshness window looks like
+
+The window's length is not set here — it belongs to whoever knows how often each
+value actually refreshes, which is backend, and it will differ per capability.
+What is drawn on each side of it is a design decision, so here it is, in three
+tiers rather than two:
+
+| Tier | Drawn as | Why |
+|---|---|---|
+| **Fresh** — inside the window | The value alone. No age, no decoration | Age on a current value is noise, and noise teaches people to ignore the marking that matters later |
+| **Ageing** — past the window | The value **and** its age, both legible: `84 % · 6 min` | Not a dimmed value, not a tooltip. A tone change is not information: it does not survive a screenshot, a colour-blind reader, or a theme whose accent has no contrast — and this document already refuses hue-only encoding |
+| **Stale** — past a second, much longer bound | **The value is not drawn at all.** Only the age: `last seen 2 h ago` | A battery figure from yesterday is not an old fact, it is a meaningless one. Past some point the number stops being evidence of anything and showing it is the plausible zero |
+
+The second bound is the one implementers skip, and it is the one that matters:
+without it, a value drifts from *current* to *slightly old* to *wrong* without
+ever changing how it looks. Backend sets both numbers per capability; design's
+requirement is that both exist and that all three tiers are reachable.
 
 ## The screen is an exposure surface
 
