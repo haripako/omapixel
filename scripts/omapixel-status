@@ -87,6 +87,24 @@ NOT_PROBED = "not_probed"          # deliberately not asked, see reason
 # vocabulary that had no way to say anything else. Raised by the desktop layer
 # on 2026-08-16. Named to match `blocked` in the capability matrix.
 BLOCKED = "blocked"
+# Known and paired, and not answering right now. Added 2026-08-17 because the
+# contract was contradicting itself: this case reported nothing_present, whose
+# documented meaning is "it answered and there is no device", while reason,
+# state.devices and actions all correctly said there was one. Three of the four
+# fields agreed and the one that disagreed was the authoritative one.
+#
+# That is worse than a wrong label. The contract's own rule is "switch on
+# status, never on the prose", so a consumer doing exactly what it is told
+# would tell the user to pair a phone that is already paired, while the correct
+# reason went past unread. The field nobody is allowed to trust was right and
+# the field everybody must trust was wrong.
+#
+# It is also the same distinction that got separated two days ago coming back
+# through another door: paired-but-out-of-range collapsed into nothing-paired.
+# It was fixed in `state` with `reachable`, and reappeared in `status`. Reusing
+# an existing value would have hidden it a third time — no_answer is about the
+# daemon, and the daemon answered. Raised by the desktop layer.
+UNREACHABLE = "unreachable"
 READY = "ready"
 
 
@@ -462,7 +480,7 @@ def probe_phone_link() -> dict:
         # and KDE Connect simply not reconnecting. The user sees "disconnected"
         # over a working network. There is something to do about it, so say so.
         return capability(
-            NOTHING_PRESENT,
+            UNREACHABLE,
             f"{len(paired)} device(s) paired with KDE Connect, none reachable "
             f"right now — the phone is off, asleep, on another network, or the "
             f"link dropped and did not come back on its own",

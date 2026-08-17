@@ -245,6 +245,30 @@ which is the point.
 | `nothing_present` | It answered, and there is no device | Pair something |
 | `not_probed` | Deliberately not asked. `reason` says why | Depends |
 | `blocked` | Installed and startable, and starting it damages this machine | **Wait.** `state.unblocked_by` says for what |
+| `unreachable` | A device is paired and known, and is not answering now | Wake the phone, or use the `retry-link` action |
+
+`unreachable` was added on 2026-08-17 because the contract was contradicting
+itself, and the field that was wrong was the authoritative one. A paired phone
+that had dropped reported `nothing_present` — documented as "it answered and
+there is no device" — while `reason`, `state.devices` and `actions` all
+correctly said there was one. Three of four fields agreed and `status`
+disagreed.
+
+That is worse than a mislabel. This document's own rule is **switch on `status`,
+never on the prose**, so a consumer doing exactly as instructed would tell the
+user to pair a phone that is already paired, while the correct `reason` went by
+unread. The field nobody is allowed to trust was right and the field everybody
+must trust was wrong.
+
+It is also the same distinction separated two days earlier arriving through
+another door: paired-but-out-of-range collapsing into nothing-paired. That was
+fixed in `state` by adding `reachable`, and it came back in `status`. Reusing an
+existing value would have hidden it a third time — `no_answer` is about the
+daemon, and here the daemon answered.
+
+**The general rule it earns:** if `state` is needed to work out what `status`
+means, `status` means nothing. Any future disagreement between them is a defect
+in `status`, not a hint that consumers should read `state`.
 
 `available` is exactly `status == "ready"` and exists only so simple consumers
 can ignore the rest.
