@@ -28,6 +28,10 @@ var PRESENTATION = {
   // version, not on a tool — so drawing it as a red failure would be a lie in
   // a few weeks' time.
   blocked:         { tone: "waiting", glyph: "…",  action: "wait" },
+  // Paired and not answering. Its own status since 2026-08-17, because it was
+  // arriving as nothing_present and telling the user to pair a phone that was
+  // already paired.
+  unreachable:     { tone: "dropped", glyph: "/",  action: "wake" },
 };
 
 // A status we do not know is not the same as a status we know to be bad. An
@@ -95,40 +99,15 @@ function freshness(asOf, nowMs, staleAfterSeconds) {
   return { known: true, stale: age > staleAfterSeconds, ageSeconds: age };
 }
 
-// --- reachability -------------------------------------------------------------
-
-// "paired but out of range" and "nothing paired" are two states with two
-// different fixes -- turn the phone on, or pair it -- and they were
-// indistinguishable until the contract split them. The widget has to say which.
-function phoneSummary(capability) {
-  var st = (capability && capability.state) || {};
-  var paired = Array.isArray(st.devices) ? st.devices : [];
-  if (paired.length === 0) return null;
-
-  // `reachable` is a list of the device ids that answered, not a boolean. It
-  // was a boolean when this was first written and the shape changed under it,
-  // which silently killed the out-of-range case: `=== false` simply never
-  // matched a list. Handled both ways now, and unknown stays unknown rather
-  // than being read as reachable.
-  var reachable;
-  if (Array.isArray(st.reachable)) {
-    reachable = paired.filter(function (id) { return st.reachable.indexOf(id) !== -1; });
-  } else if (st.reachable === true) {
-    reachable = paired;
-  } else if (st.reachable === false) {
-    reachable = [];
-  } else {
-    return null;  // no reachability information: say nothing rather than guess
-  }
-
-  if (reachable.length > 0) return null;
-
-  // Paired and none of them answering. Two different fixes -- wake the phone,
-  // or pair one -- and they were indistinguishable until the contract split
-  // them, so the widget has to say which.
-  return { summary: "out of range", action: "wake", tone: "empty",
-           paired: paired.length };
-}
+// Reachability used to be worked out here, by reading state.devices against
+// state.reachable, because `status` said nothing_present for a paired phone.
+// That code was right and the reason it was right was the problem: a widget
+// only got the answer by ignoring the contract's own rule to switch on status.
+//
+// Removed on 2026-08-17, when `unreachable` became a status. The rule now in
+// the contract: if you need the state to know what the status means, the
+// status means nothing, and a disagreement between them is a defect in the
+// status rather than a hint to read the state.
 
 // --- origin -------------------------------------------------------------------
 
@@ -229,15 +208,6 @@ function slot(name, capability, nowMs, staleAfterSeconds) {
     summary = "waiting for " + st.unblocked_by.split(",")[0];
   }
   var action = look.action;
-
-  // Paired-but-unreachable outranks the generic status text, because it is the
-  // one the user can act on.
-  var reach = name === "phone" ? phoneSummary(capability) : null;
-  if (reach) {
-    summary = reach.summary;
-    action = reach.action;
-    look = { tone: reach.tone, glyph: "○", action: reach.action };
-  }
 
   var fresh = freshness(capability.as_of, nowMs, staleAfterSeconds);
   var trusted = trust(originOf(capability));

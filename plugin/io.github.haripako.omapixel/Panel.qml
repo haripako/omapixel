@@ -42,7 +42,7 @@ BarWidget {
     // "waiting" sits below everything actionable: an hourglass is not a thing
     // the user can do anything about today, so it should not push aside a
     // missing package they could install right now.
-    var order = ["unsure", "stalled", "absent", "held", "empty", "waiting", "normal"]
+    var order = ["unsure", "stalled", "dropped", "absent", "held", "empty", "waiting", "normal"]
     var pick = null
     for (var i = 0; i < view.slots.length; i++) {
       var s = view.slots[i]
@@ -72,6 +72,7 @@ BarWidget {
       case "empty":   return "\uf00b2"  // bluetooth off: nothing paired, or out of range
       case "held":    return "\uf03e4"  // pause: deliberately not asked
       case "waiting": return "\uf051f"  // hourglass: blocked on a condition, not broken
+      case "dropped": return "\uf0338"  // broken link: paired, and the link went away
       default:        return "\uf02d7"  // question: we do not know, and say so
     }
   }
