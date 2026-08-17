@@ -35,6 +35,23 @@ Out: sending and receiving from the Pixel without a cable.
 
 Testable in full on the Pixel 7 Pro. Does not wait for the Pixel 11 Pro.
 
+> **Blocked on an upstream bug, 2026-08-16.** The three unchecked boxes above
+> cannot be measured on this machine right now, and the reason is not ours.
+> Launching `rquickshare` turns on LE discovery with a UUID filter, and BlueZ
+> 5.87 crashes the moment a received advertisement matches one — measured here
+> from three core dumps with an identical backtrace, and fixed upstream in
+> [`82af2be`](https://github.com/bluez/bluez/commit/82af2be), six days after the
+> 5.87 tag. No release carries the fix yet, so **F1 waits for BlueZ 5.88**.
+> Details, backtrace and dates in
+> [docs/04-reference-setup.md](04-reference-setup.md).
+>
+> Three ways around it were considered and dropped on 2026-08-16. Recompiling
+> BlueZ, or patching the `rquickshare` binary, would put a package outside the
+> package manager on the reference machine — and this project's whole claim is
+> that what is measured here reproduces on an ordinary Arch. Living with the
+> crash would mean measuring on a system restarting underneath the measurement.
+> The work that does not need the radio continues meanwhile.
+
 ### The tray indicator works, and is invisible anyway
 
 Measured 2026-08-15, and worth reading before designing anything around a tray
