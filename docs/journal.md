@@ -44,7 +44,172 @@ entry that says what was wrong and what replaced it.
 
 ---
 
+## 2026-08-17
+
+**decision, and it has been made four times in three days** — **The failure to
+measure needs its own value, distinct from every possible result of the
+measurement. It never collapses into the nearest one.**
+
+Four cases, and the fourth is why it is written down:
+
+1. A `timeout` returning 124 had to mean **no answer**, not "no earbuds are
+   paired".
+2. A missing `origin` on a report is **`unknown`** — and that is precisely why
+   it is not a boolean: `simulated = false` cannot say "I do not know", and its
+   absence reads as "real".
+3. A phone that is paired but unreachable needed **`unreachable`** of its own
+   rather than reusing "nothing present". Out of that came the sharpest line in
+   the status contract: **if you need the `state` to know what the `status`
+   means, the `status` means nothing.**
+4. A failure of the image-comparison tool in the screen probe was being recorded
+   as **"notification received, not drawn"** — a broken tool turned into an
+   assertion about the desktop. Found by reading the code. **Unfixed; the probe
+   is suspended.**
+
+The first three were got right. **The fourth was then committed anyway**, in
+another file, by another person. That is the point: having reasoned it through
+before does not carry over. It is a decision to be taken **every time** a field
+or a verdict is designed.
+
+It is a sibling of "a name is not a thing", not the same thing. There, a tool
+reports something it did not do. Here **the tool fails silently and the consumer
+fills the hole with the nearest available value** — which is always the
+plausible one, and therefore the one nobody questions.
+
+**decision, about which source counts** — **When the datum exists in the API, the
+rendered page is not equivalent evidence.** The case: creating issues was
+reported as *restricted* on a repository, read off the web page. The API says
+`has_issues: false` — the tracker is **disabled**. The verdict pointed the same
+way, but the practical conclusion did not: "restricted" sends you looking for a
+permission to request, and there is no permission to request.
+
+Same family as "a name is not a thing", applied to **choosing a source**: two
+sources described the same thing and one of them was structured. The operational
+corollary, which is what makes a derived claim usable: **if you pass on
+something read off a page when an API exists, say so as you pass it on.**
+
+**hypothesis, unverified by anybody** — That "Issue creation is restricted in
+this repository" is precisely the text GitHub shows **when the tracker is
+disabled**. If true it explains the whole mistake and saves the next one.
+Recorded as a hypothesis rather than quietly assumed, which is the entire point.
+
+**decision, and it is the stronger form of a fix** — The screen probe's cleanup
+had been made to depend on a `trap`. Rather than harden the trap, the design
+changed so that **there is nothing to clean up**: the default mode does not call
+the screenshot tool at all, and capture lives behind a flag that is off. **"There
+is nothing to delete" beats "it gets deleted afterwards"** — the first cannot
+fail, the second fails whenever the process dies in an unplanned way, which is
+exactly when it matters.
+
+Written into the script's own header: turning that flag on is **the operator's
+decision, in their own words**. Not a relay from somebody coordinating.
+
+**blocked, and the reason is worth separating from every other blocker here** —
+The "was it drawn on screen" half of the notification capability is suspended
+**for want of explicit authorisation to capture the maintainer's screen**. That
+is not "cannot be measured": it can, and it is not being done. The row stays
+`partial` with the reason recorded, because a limit that is a choice and a limit
+that is technical age in completely different ways.
+
+**measured, and it closes the fourth case above** — The comparison failure now
+reports as **a third explicit outcome, "could not compare"**, instead of
+collapsing into "not drawn". And the probe now dies on its own, with a watchdog
+independent of the bus traffic: it declared 12 s and exited with no notification
+arriving, where before it would have stayed alive indefinitely.
+
+**measured, and it bounds the damage rather than excusing it** — `/tmp` is
+`tmpfs` on this machine, so the captures already taken never reached persistent
+storage. That is a fact about the damage, not about the design.
+
 ## 2026-08-16
+
+**measured — the largest open question in the repository is closed, and it
+closes against the answer everybody assumed** — The `bluetoothd` segfault is a
+**BlueZ 5.87 defect, not an `rquickshare` one**. The backtrace is **identical
+across all three core dumps**, differing only in ASLR base, which is what makes
+it a fact rather than a lead:
+
+```
+queue_find            src/shared/queue.c:230
+is_filter_match       src/adapter.c:7218
+btd_adapter_device_found
+device_found_callback
+process_notify        src/shared/mgmt.c:363
+```
+
+At `queue.c:230` the code runs `function(entry->data, match_data)` with
+`function` pointing into the **heap** while the binary's code sits at a
+different base — a data pointer where a function pointer belongs.
+
+**This promotes the 15 August inference from derived to measured.** That day the
+crash signature — instruction pointer equal to the faulting address — was
+recorded as *"the shape of a call through a corrupted or freed function pointer,
+inference, not yet confirmed"*. It is now confirmed, by a different method, and
+the earlier entry stands as written.
+
+Three corrections travel with it, and each invalidates something already
+recorded here:
+
+1. **It is the discovery path, not the advertising path.** It dies while
+   processing a **received** advertisement and matching it against the filters.
+   In the third dump the payload is legible: an `Oclean X` toothbrush. Both
+   halves of the 15 August open question guessed at advertising; the answer was
+   the other direction.
+2. **`rquickshare` is exonerated.** Everything written as "`rquickshare` crashes
+   `bluetoothd`" should now be read as **"starting LE discovery crashes it, and
+   `rquickshare` starts LE discovery"**. It does not appear in the stack at all.
+   It is the trigger, not the cause.
+3. **That it sits underneath all of F3 remains derived.** Nothing in the stack
+   is specific to Quick Share, but asserting it needs a second LE tool measured
+   here. The precondition stands.
+
+**measured — and it refutes the entry immediately above, written hours earlier
+the same day** — There is **no corrupted pointer and no freed memory**.
+`is_filter_match()` passes `queue_find()` its **arguments the wrong way round**,
+so the UUID *string* is called as code. Confirmed by reading the address:
+`x/s 0x560c724cebf0` → `"0000fe2c-0000-1000-8000-00805f9b34fb"`, identical in
+all three dumps.
+
+So the 15 August inference — "the shape of a call through a corrupted or freed
+function pointer" — was **plausible, promoted to measured earlier today on the
+strength of the backtrace, and wrong**. The backtrace was right; the story told
+about it was not. **Both entries stay**, because the useful record here is not
+the answer but the fact that a careful inference survived two days and one
+promotion before the address was actually read.
+
+**measured — it is not a race, and it has nothing to do with startup** — The
+crash needs **two conditions at once**:
+
+1. a client with a **UUID filter** registered — `0000fe2c`, Google Fast Pair,
+   which is the one `rquickshare` registers; and
+2. a **foreign BLE advertisement carrying at least one service**.
+
+The second undoes the label. With an empty service list `queue_find` never
+iterates and the bad call is never reached; all three dumps show `entries = 1`.
+What looked like "it takes a moment to crash after launching" was **waiting for
+a neighbour to walk past advertising services**. In the first dump that
+neighbour is a device called `PR BT 7152`; in the third, the `Oclean X`
+toothbrush.
+
+For two days this was written as something about `rquickshare`'s **startup
+path** — "it fires when you launch it", "that is where the BLE listener comes
+up" — and from there it was called a race. It is neither. This is the same
+lesson as the flaky test: **a label applied to an unreproduced mechanism closes
+the investigation.** It cost two days here.
+
+**derived** (GitHub API, this date) — Fixed upstream in BlueZ commit `82af2be`,
+9 July 2026 — **six days after the `5.87` tag**, with no `5.88` released. So the
+fix exists and is not available on this machine. Derived, not measured: nobody
+here has built that commit.
+
+**measured — how the dumps were unblocked, because the method is reusable** —
+They had been unreadable for a day, marked `inaccessible` by `coredumpctl`
+because they could not be opened as the user. A single authenticated `sudo` —
+typed from a phone over Tailscale SSH — turned them into ordinary files:
+`coredumpctl dump` for each of the three PIDs into a normal directory, then
+`chown`. **One `sudo` converts a permanent blocker into a file anybody can
+analyse without privileges**, and it is worth reaching for that before designing
+around the blocker.
 
 **measured, in a clean VM** — Omarchy 4.0.0 from the official 14 August ISO,
 kernel 7.1.8. `scripts/hw-report.sh` **hung forever** on a machine where
@@ -76,6 +241,24 @@ rarer than making one.
 granting the user read-write, verified with `getfacl`. Neither does
 `virsh -c qemu:///system`. What does need root is `sudo` itself, which is why
 the core dumps are still blocked and nothing else is.
+
+**the lesson from two days of these, and it is about this repository's own
+rules** — Almost every expensive mistake in this journal would have been
+prevented by a rule that was **already written in
+[conventions](conventions.md) on day one**: do not announce a cause you have not
+reproduced.
+
+The failure was not lacking the rule. **It was believing that having it was
+enough.** It was applied religiously to claims about the hardware — the place
+the error was expected — and broken daily everywhere else: in diagnoses
+("race", "flaky", "startup path"), in what was declared blocked without being
+checked, and in what one person asserted about another's work. `rfkill` and
+`virsh` were both declared to need root and neither did; three dumps were
+declared missing and all three were on disk.
+
+**The place a rule gets broken is not the place you were thinking of when you
+wrote it.** That is worth more than any single finding above, and it is the
+reason this file exists at all.
 
 **decision by the maintainer** — Two shifts, day in reserve and night open;
 coordination as sole executor while working remotely; and the Bluetooth mouse
@@ -113,6 +296,15 @@ re-enumeration. A phantom connection — ACL up, HID profile never re-bound.
 Immediate reconnect gives `le-connection-abort-by-local`; power-cycling the
 adapter gives `br-connection-canceled`; further attempts stack up as
 `InProgress` and block each other. Disconnect, wait, one connect, succeeds.
+
+**Corrected on 2026-08-16 — this sequence does not cover a blocked radio.**
+Measured that day: after `rfkill block`, an unblock followed by a disconnect, a
+real fifteen-second pause, a power cycle and three connects **all failed**, with
+`bluetoothd` perfectly healthy throughout. A Bluetooth mouse waits to be
+**moved** before it advertises again. The sequence above was written from the
+crash case, where the device is still awake, and it silently assumed **somebody
+is sitting at the machine**. It is a recovery for a person, not for a script,
+and it was about to be written into `doctor` as though it were the latter.
 
 **measured, and it sharpens the entry above** — On the phantom-connection
 occasion, `connect` returned `le-connection-abort-by-local` **and the HID
