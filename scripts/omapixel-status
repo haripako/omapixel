@@ -171,6 +171,27 @@ def action(action_id: str, label: str, available: bool, reason=None) -> dict:
 # absent, and "6 min ago" is more useful than a blank.
 STALE_AFTER = {"phone-link": 30, "file-transfer": 300, "buds": 120}
 
+# The second threshold: past this, do not draw the value at all.
+#
+# Design defined three bands — fresh, ageing, and dead — and left both numbers
+# to whoever knows how fast each value stops meaning anything. Between the two
+# thresholds a consumer shows the value with its age, because stale is not
+# absent and "6 min ago" beats a blank. Past the second one it stops showing
+# the value, because there is a point where an old reading is not weak evidence
+# but no evidence, and drawing it invites someone to act on it.
+#
+#   phone-link      300s  Reachability five minutes old is speculation: the
+#                         link has dropped twice in a few hours on its own.
+#   file-transfer  3600s  Gated on an installed package version, which does not
+#                         change silently in an hour.
+#   buds            900s  A battery percentage from a quarter of an hour ago
+#                         cannot inform any decision about charging.
+#
+# Deliberately not a multiple of the first. They answer different questions —
+# "should I say this is old" and "is this still evidence" — and tying them
+# together would make one of the two arbitrary.
+DEAD_AFTER = {"phone-link": 300, "file-transfer": 3600, "buds": 900}
+
 
 def capability(status: str, reason: str | None, provider, state: dict,
                actions: list | None = None, stale_after: int | None = None) -> dict:
@@ -615,8 +636,9 @@ def probe_buds(probe_bluetooth: bool) -> dict:
 
 
 def with_staleness(name: str, cap: dict) -> dict:
-    """Attach the per-capability freshness budget, so consumers stop guessing."""
+    """Attach the per-capability freshness budgets, so consumers stop guessing."""
     cap["stale_after"] = STALE_AFTER[name]
+    cap["dead_after"] = DEAD_AFTER[name]
     return cap
 
 

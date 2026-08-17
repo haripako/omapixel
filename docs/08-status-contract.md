@@ -140,8 +140,24 @@ stale or draws a dead value as current.
 | `file-transfer` | 300 s | Gated on the installed BlueZ version and whether rquickshare runs. Neither is a per-second event |
 | `buds` | 120 s | Battery and ANC move slowly, but a Bluetooth device can disconnect between two looks |
 
-Past the threshold, **say the age, do not hide the value**: stale is not absent,
-and "6 min ago" tells a user more than a blank does.
+**There are two thresholds, and they answer different questions.** Design
+defined three bands — fresh, ageing, dead — and left both numbers to whoever
+knows how fast each value stops meaning anything.
+
+| Capability | `stale_after` | `dead_after` |
+|---|---|---|
+| `phone-link` | 30 s | 300 s — reachability five minutes old is speculation, and the link has dropped twice in a few hours on its own |
+| `file-transfer` | 300 s | 3600 s — gated on an installed package version, which does not change silently within an hour |
+| `buds` | 120 s | 900 s — a battery percentage from a quarter of an hour ago cannot inform a decision about charging |
+
+Between the two, **say the age and still show the value**: stale is not absent,
+and "6 min ago" tells a user more than a blank does. Past the second, **stop
+showing the value**, because there is a point where an old reading is not weak
+evidence but no evidence, and drawing it invites somebody to act on it.
+
+`dead_after` is deliberately not a multiple of `stale_after`. Tying them
+together would make one of the two arbitrary, and they are answering "should I
+say this is old" and "is this still evidence at all".
 
  A figure with no
 timestamp is indistinguishable from the same figure an hour later, and a bar
