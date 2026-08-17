@@ -41,7 +41,7 @@ HOST_MAC = "AA:BB:CC:DD:EE:FF"
 HOST_IP = "[ip redacted]"
 
 STATUSES = {"not_installed", "no_answer", "nothing_present", "not_probed",
-            "blocked", "ready"}
+            "blocked", "unreachable", "ready"}
 # as_of is per capability, not per document: a consumer caches one capability
 # at a time, so a single document-level stamp would age them all together.
 CAPABILITY_KEYS = {"available", "status", "reason", "provider", "state", "as_of"}
@@ -196,6 +196,63 @@ class StatusContract(unittest.TestCase):
                         f"{name} is unavailable with no reason. A consumer cannot "
                         f"tell 'install a package' from 'pair a device'",
                     )
+
+    def test_situations_with_different_fixes_have_different_statuses(self):
+        """If you need the state to know what the status means, it means nothing.
+
+        The rule backend wrote when `unreachable` was added, and worth more
+        than any single string: two situations that call for different actions
+        from the user must differ in `status`, not only in `reason` or in a
+        list inside `state`. A consumer switches on the status; whatever it
+        cannot see there, it gets wrong.
+
+        Three phone-link situations, three different things to go and do —
+        install KDE Connect, pair a phone, wake the phone up — so three
+        distinct statuses.
+        """
+        situations = {
+            "install it": {},
+            "pair something": {"kdeconnectd": "#!/bin/sh\n",
+                               "busctl": "#!/bin/sh\necho 'as 0'\n"},
+            "wake the phone": {
+                "kdeconnectd": "#!/bin/sh\n",
+                "busctl": ("#!/bin/sh\n"
+                           'case "$*" in\n'
+                           "  *' bb true true'*) echo 'as 0' ;;\n"
+                           '  *) echo \'as 1 "abcd1234"\' ;;\n'
+                           "esac\n"),
+            },
+        }
+        statuses = {}
+        for fix, stubs in situations.items():
+            data, _ = self.json_status(stubs=stubs)
+            statuses[fix] = data["capabilities"]["phone-link"]["status"]
+
+        self.assertEqual(
+            len(set(statuses.values())), len(statuses),
+            f"different fixes sharing a status: {statuses}",
+        )
+
+    def test_a_dangerous_state_does_not_share_a_status_with_a_safe_one(self):
+        """The case that produced the rule, and the one that did harm.
+
+        "Installed but not running" tells a user to start it. On BlueZ 5.87
+        starting it takes bluetoothd down and the mouse with it. Those two
+        cannot be the same status, or a bar widget correctly derived from the
+        vocabulary gives advice that breaks the machine.
+        """
+        self.require_expressible_safety()
+        not_running = {"rquickshare": "#!/bin/sh\n", "pgrep": pgrep_stub("bluetoothd")}
+        dangerous = {**self.LISTENING,
+                     "bluetoothctl": '#!/bin/sh\n[ "$1" = "--version" ] && '
+                                     'echo "bluetoothctl: 5.87"\n'}
+
+        first, _ = self.json_status(stubs=not_running)
+        second, _ = self.json_status(stubs=dangerous)
+        self.assertNotEqual(
+            first["capabilities"]["file-transfer"]["status"],
+            second["capabilities"]["file-transfer"]["status"],
+        )
 
     def test_generated_timestamp_is_utc_and_parses(self):
         from datetime import datetime
@@ -562,13 +619,13 @@ class StatusContract(unittest.TestCase):
         }
         data, _ = self.json_status(stubs=unreachable)
         link = data["capabilities"]["phone-link"]
-        self.assertEqual(link["status"], "nothing_present")
-        self.assertIn("none reachable", link["reason"])
-        self.assertEqual(link["state"]["devices"], ["abcd1234"])
+        # The distinction used to live only in the reason string; since 3d02f70
+        # it has its own status value, which is what the argument was for.
+        self.assertEqual(link["status"], "unreachable")
+        self.assertIn("abcd1234", link["state"]["devices"])
         self.assertEqual(link["state"]["reachable"], [])
         self.assertNotEqual(
-            link["reason"],
-            "no device is paired with KDE Connect",
+            link["status"], "nothing_present",
             "paired-but-unreachable is being reported as nothing paired",
         )
 

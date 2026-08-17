@@ -118,6 +118,47 @@ class RealData(unittest.TestCase):
         self.assertTrue(reports[0]["results"], "the template has no example result")
         self.assertIsNot(module, None)
 
+    def test_every_real_report_declares_where_it_came_from(self):
+        """The published data, not the loader.
+
+        The loader's rules are tested with fixtures; this is the live directory
+        that feeds the matrix a stranger reads. A report here without `origin`
+        would be one whose provenance nobody can establish after the fact.
+        """
+        for path in sorted(DEVICES.glob("*.toml")):
+            with path.open("rb") as fh:
+                data = tomllib.load(fh)
+            with self.subTest(file=path.name):
+                self.assertIn(
+                    "origin", data,
+                    f"{path.name} does not say whether it came from a device, "
+                    f"the emulator, or something undetermined",
+                )
+                self.assertIn(data["origin"], ("device", "emulator", "unknown"))
+
+    def test_no_committed_report_claims_hardware_it_did_not_run_on(self):
+        """A simulated run must not be sitting in the published data as real.
+
+        Not a check on the word "virtual" anywhere in the file — a report
+        generated against the emulator by somebody in a hurry does not contain
+        it. The declared field is the only thing that counts, and this asserts
+        the two cannot disagree: a report marked `device` must not name the
+        emulator as the tool that produced its results.
+        """
+        for path in sorted(DEVICES.glob("*.toml")):
+            with path.open("rb") as fh:
+                data = tomllib.load(fh)
+            if data.get("origin") != "device":
+                continue
+            for result in data.get("result", []):
+                tool = str(result.get("tool", "")).lower()
+                with self.subTest(file=path.name, id=result.get("id")):
+                    self.assertNotIn(
+                        "virtual-pixel", tool,
+                        f"{path.name} claims origin=device but {result.get('id')} "
+                        f"was produced by the emulator",
+                    )
+
     def test_device_reports_are_named_after_their_device(self):
         for path in sorted(DEVICES.glob("*.toml")):
             with self.subTest(file=path.name):
