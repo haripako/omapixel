@@ -104,6 +104,19 @@ every report that references them; renaming one silently orphans results.
 
 ## Code
 
+**CI runs `shellcheck --severity=warning` on the shell scripts.** Run it before
+you open a pull request:
+
+```bash
+shellcheck --severity=warning scripts/hw-report.sh
+```
+
+Worth saying plainly, because it is the kind of thing that wastes a first-time
+contributor's afternoon: **`shellcheck` is not installed on the reference
+machine**, so that check is the one thing in CI that nobody here can reproduce
+locally. If your pull request fails on it and the message is not obvious, say so
+in the pull request — it may well be our rule that is wrong.
+
 - Shell scripts must not install anything. They print the exact command and stop.
   Package installation is the user's decision, on their machine, with their
   package manager.
