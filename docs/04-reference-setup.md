@@ -457,3 +457,37 @@ by asking anything.** That is why the `notifications` row stays `partial`. The
 transport half is measured, the drawing half has a written reason rather than a
 blank, and closing it needs the screen — which is the user's to authorise, not
 ours to assume.
+
+## Headroom on this machine, measured before anything is installed
+
+**Measured 2026-08-17**, in normal working conditions: eleven agent sessions,
+the advisor's VM, and the desktop up. Taken because a local LLM was proposed
+and "does it fit" is the wrong question — the right one is what it displaces.
+
+| Resource | Total | In use | Free |
+|---|---|---|---|
+| VRAM, Radeon RX 7900 XT | 20464 MiB | 4688 MiB (22 %) | **15.4 GiB** |
+| VRAM, Raphael iGPU | 512 MiB | 15 MiB | — |
+| RAM | 30 GiB | 22 GiB | **8.3 GiB available** |
+| zram swap | 30.6 GiB | **7.1 GiB** | — |
+| GPU utilisation, idle desktop | — | **21 %** | — |
+
+**The headline is not the VRAM. The machine is already swapping.** 6733 MiB of
+pages have been pushed out to zram, compressed 2.5:1 into 2743 MiB of physical
+RAM. So this is not a question of whether loading a model *would* cause swap:
+under a normal working load, with no model anywhere, it is already happening.
+The 8.3 GiB `free` reports as available is what remains *after* that eviction.
+
+**The largest single consumer is ours, not the user's:** `qemu-system-x86` at
+5.8 GiB — the advisor's clean-install VM. Each agent session costs about
+0.5 GiB. So the most effective way to free memory on this machine is to shut
+down a VM nobody is using, and that is worth knowing before anything is bought
+or installed.
+
+**What is not measured, and matters most for the desktop:** what happens to
+Hyprland when the GPU saturates. Hyprland composites on the same card that
+would run inference, and idle utilisation is already 21 %. Establishing that
+needs a load to be generated, which needs something installed, which needs
+Hari's permission. Recorded as an open question rather than reasoned about:
+"a 20 GiB card has room" is exactly the plausible-sounding shortcut this
+project refuses to take.
