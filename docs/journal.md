@@ -93,6 +93,14 @@ write by hand — and the file that leaked was ours, not a contributor's. A
 MAC paired with a device name is also the blind spot the detector deliberately
 cannot catch, since twelve hex digits match half the logs in the world.
 
+**And it had already been pushed.** The redaction landed in the working tree
+first, which changes nothing: **the tree is not what gets published, the commit
+is.** The privacy sweeps were reading files off disk, so they stayed green over
+a `HEAD` that leaked. The check now reads what is committed. What no check can
+do, and it should be written down so nobody assumes otherwise: **it does not
+undo a push.** It fails before the next one, which is the only moment at which
+there is a fix.
+
 Two lessons, and the second is the one that generalises: **an invariant tells
 you where its author expected the danger to be**, and here it was pointed
 entirely outward. And **the person who writes the rules is not exempt from
