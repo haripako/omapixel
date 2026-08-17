@@ -80,16 +80,38 @@ registers.
 
 ## F2 — Clipboard and notifications
 
-In: F1 working.
+In: nothing. **Corrected 2026-08-17: this said "F1 working", and it was wrong.**
+F1 is blocked on a BlueZ bug and F2 was measured anyway — the two share no code
+path. The dependency was assumed because both involve the phone, and it cost a
+day of treating F2 as unreachable.
 Out: copy on the phone, paste on the PC.
 
-- [ ] Install `kdeconnect` and the Android app
-- [ ] Pair and validate: clipboard both ways, notifications, SMS
+- [x] Install `kdeconnect` and the Android app — `kdeconnect 26.04.3-1`
+- [x] Pair — `Pixel 7 Pro`, paired and reachable, 2026-08-17
+- [ ] Validate: clipboard both ways, notifications, SMS — **two halves measured,
+      both `partial`.** Notifications arrive over D-Bus with their source app;
+      nobody has verified they are *painted*. Clipboard measured one way.
 - [ ] Verify the clipboard under Wayland (`wl-clipboard`)
 - [ ] Decide how the daemon starts in the Hyprland session
 - [ ] Check whether the tray icon coexists with the bar
 
-Also testable in full on the Pixel 7 Pro.
+> **Everything measured so far went over Tailscale, not the LAN**, with 97-737 ms
+> RTT and a relay in the path. That is not the route the product will use, so no
+> row here says anything about LAN behaviour yet.
+>
+> **The link drops on its own and does not recover on its own** — twice in a few
+> hours, with the phone paired and answering ping. `forceOnNetworkChange` over
+> D-Bus restores it in under 12 s, which is why the contract carries an
+> `unreachable` status with a `retry-link` action instead of a grey gap.
+>
+> **Sending a file can be measured; confirming it arrived cannot yet.**
+> `kdeconnect-cli --mount` returns a path and mounts nothing: `sshfs` is not
+> installed, and the journal says so while the command does not. Installing it
+> is a decision for the maintainer.
+
+Also testable in full on the Pixel 7 Pro. The phone's battery reads correctly
+over the same channel, but it stays out of the matrix on purpose: the catalogue
+places `phone-battery` in F4, and a capability enters when its phase does.
 
 ## F3 — Pixel Buds
 
