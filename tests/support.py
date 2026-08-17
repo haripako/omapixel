@@ -188,6 +188,44 @@ def _is_publishable_network(token: str) -> bool:
     return network.prefixlen <= limit
 
 
+# Ranges the standards reserve for documentation. They cannot identify anyone,
+# by design, which is exactly why a document should use them — and why flagging
+# them would push authors back towards pasting real addresses.
+DOCUMENTATION_NETWORKS = (
+    "192.0.2.0/24", "198.51.100.0/24", "203.0.113.0/24",  # RFC 5737
+    "2001:db8::/32",                                       # RFC 3849
+)
+
+
+def _is_documentation_address(token: str) -> bool:
+    import ipaddress
+
+    try:
+        address = ipaddress.ip_address(token.split("/")[0])
+    except ValueError:
+        return False
+    return any(
+        address in ipaddress.ip_network(net)
+        for net in DOCUMENTATION_NETWORKS
+        if ipaddress.ip_network(net).version == address.version
+    )
+
+
+def _is_loopback(token: str) -> bool:
+    """127.0.0.1 and ::1 identify nobody.
+
+    A known false positive, exempted rather than suppressed: loopback appears
+    in every example of connecting to a local service, and flagging it would
+    train people to ignore this check.
+    """
+    import ipaddress
+
+    try:
+        return ipaddress.ip_address(token.split("/")[0]).is_loopback
+    except ValueError:
+        return False
+
+
 def privacy_violations(text: str) -> list[str]:
     """Every MAC address and host IP in `text`, as human-readable findings.
 
@@ -227,6 +265,8 @@ def privacy_violations(text: str) -> list[str]:
 
     for match in IPV4_RE.finditer(text):
         token = match.group(0)
+        if _is_loopback(token) or _is_documentation_address(token):
+            continue
         if not _is_publishable_network(token):
             found.append(f"host IP {token.split('/')[0]}")
 
@@ -240,6 +280,8 @@ def privacy_violations(text: str) -> list[str]:
             ipaddress.ip_address(token.split("/")[0])
         except ValueError:
             continue  # a timestamp, a range, a fragment of something else
+        if _is_loopback(token) or _is_documentation_address(token):
+            continue
         if not _is_publishable_network(token):
             found.append(f"host IPv6 {token.split('/')[0]}")
     return found

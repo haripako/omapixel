@@ -35,6 +35,12 @@ from tests.support import (
 
 DEVICES = DATA / "devices"
 
+# The canonical example MAC, and the one a copy-paste recipe has to show so the
+# reader knows the shape of what to substitute. Exempted here rather than in the
+# detector, deliberately: the detector stays strict, so a real address still
+# fails everywhere, and this exception is visible in the test that grants it.
+PLACEHOLDER_MAC = "AA:BB:CC:DD:EE:FF"
+
 
 class GeneratedMatrix(unittest.TestCase):
     def test_matrix_is_current(self):
@@ -190,6 +196,34 @@ class PrivacyOfPublishedReports(unittest.TestCase):
         text = (DOCS / "02-capability-matrix.md").read_text()
         self.assertEqual(privacy_violations(text), [])
 
+    def test_no_document_we_write_ourselves_leaks_either(self):
+        """The discipline was on the stranger's input, not on our own output.
+
+        Found by code review on 2026-08-17: the sweep covered data/devices/ and
+        the generated matrix, and nothing else in docs/. The document that
+        actually leaked was ours — raw `bluetoothctl` output pasted into the
+        journal, MAC addresses with the device name beside them, and the host
+        IP twice.
+
+        Same publication risk, same git history, and a stricter rule than for a
+        contributor: we know better.
+        """
+        for path in sorted(DOCS.glob("**/*.md")):
+            found = [
+                item for item in privacy_violations(path.read_text())
+                if PLACEHOLDER_MAC not in item
+            ]
+            with self.subTest(file=path.relative_to(DOCS).as_posix()):
+                if found:
+                    self.fail(
+                        f"docs/{path.relative_to(DOCS)} leaks {', '.join(found)}.\n"
+                        f"Redact it: the adapter model instead of its MAC, the "
+                        f"bare subnet instead of the host address. A device name "
+                        f"next to a MAC is worse than either alone.\n"
+                        f"Loopback and four-part version numbers are exempt "
+                        f"already, so this is not one of those."
+                    )
+
     # --- positive controls: prove the detector actually detects --------------
 
     def test_detector_catches_a_mac_address(self):
@@ -253,6 +287,31 @@ class PrivacyOfPublishedReports(unittest.TestCase):
 
     def test_detector_allows_an_ipv6_subnet(self):
         self.assertEqual(privacy_violations('subnet = "2a02:9130:88c1::/48"'), [])
+
+    def test_detector_exempts_the_documentation_ranges(self):
+        """RFC 5737 and RFC 3849 exist so documents need not use real addresses.
+
+        Flagging them would push an author back towards pasting a real one,
+        which is the opposite of what this check is for.
+        """
+        for address in ("192.0.2.34", "198.51.100.7", "203.0.113.9",
+                        "2001:db8::1"):
+            with self.subTest(address=address):
+                self.assertEqual(privacy_violations(f'addr = "{address}"'), [])
+
+    def test_detector_still_catches_a_real_address_beside_a_documented_one(self):
+        """The exemption must not become a way of smuggling one in."""
+        found = privacy_violations('example = "192.0.2.1", real = "[ip redacted]"')
+        self.assertEqual(found, ["host IP [ip redacted]"])
+
+    def test_detector_exempts_loopback(self):
+        """127.0.0.1 identifies nobody, and appears in every local example.
+
+        Flagging it would train people to ignore this check, which is how a
+        privacy invariant dies.
+        """
+        self.assertEqual(privacy_violations("curl http://127.0.0.1:8080"), [])
+        self.assertEqual(privacy_violations("connect to [::1]:8080"), [])
 
     def test_detector_does_not_trip_on_timestamps_or_usb_ids(self):
         """Colons are everywhere. The parser decides, not the shape."""

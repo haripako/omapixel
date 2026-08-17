@@ -44,7 +44,13 @@ STATUSES = {"not_installed", "no_answer", "nothing_present", "not_probed",
             "blocked", "unreachable", "ready"}
 # as_of is per capability, not per document: a consumer caches one capability
 # at a time, so a single document-level stamp would age them all together.
-CAPABILITY_KEYS = {"available", "status", "reason", "provider", "state", "as_of"}
+# Always present. A consumer may read any of these without checking first.
+REQUIRED_CAPABILITY_KEYS = {"available", "status", "reason", "provider", "state",
+                            "as_of"}
+# Present when they apply. Listed so that a key nobody documented fails the
+# shape test instead of appearing silently: additive growth is fine, undeclared
+# growth is how a contract stops describing its own output.
+OPTIONAL_CAPABILITY_KEYS = {"stale_after", "actions"}
 
 # An empty machine: no rquickshare, no kdeconnect-cli, no pbpctrl. Only the
 # things that describe the host, and a bluetoothctl that refuses to do anything
@@ -89,6 +95,16 @@ BLUETOOTHD_PATHS = (
     "/usr/lib/bluetooth/bluetoothd",
     "/usr/libexec/bluetooth/bluetoothd",
 )
+
+
+def device_ids(entries) -> list[str]:
+    """The ids from a device list, which grew from strings into objects.
+
+    KDE Connect entries carry a display name alongside the id since 3d02f70.
+    Tests that are about pairing state read the ids and leave the names alone:
+    a name comes from the phone and is not something this suite can predict.
+    """
+    return [entry["id"] if isinstance(entry, dict) else entry for entry in entries]
 
 
 def pgrep_stub(*running: str) -> str:
@@ -165,9 +181,35 @@ class StatusContract(unittest.TestCase):
         data, _ = self.json_status()
         for name, cap in data["capabilities"].items():
             with self.subTest(capability=name):
-                self.assertEqual(set(cap), CAPABILITY_KEYS)
+                missing = REQUIRED_CAPABILITY_KEYS - set(cap)
+                self.assertEqual(missing, set(), f"{name} is missing {missing}")
+                extra = set(cap) - REQUIRED_CAPABILITY_KEYS - OPTIONAL_CAPABILITY_KEYS
+                self.assertEqual(
+                    extra, set(),
+                    f"{name} carries undeclared key(s) {extra}. Add them to "
+                    f"OPTIONAL_CAPABILITY_KEYS and to docs/08-status-contract.md, "
+                    f"or a consumer meets a field nothing describes",
+                )
                 self.assertIsInstance(cap["available"], bool)
                 self.assertIsInstance(cap["state"], dict)
+
+    def test_every_optional_key_in_use_is_documented(self):
+        """A field in the output that the contract does not mention is a trap.
+
+        The consumer that finds it first has to guess what it means, and its
+        guess becomes the de facto specification.
+        """
+        from tests.support import DOCS
+
+        contract = DOCS / "08-status-contract.md"
+        if not contract.exists():
+            self.skipTest("docs/08-status-contract.md does not exist")
+        text = contract.read_text()
+        data, _ = self.json_status(stubs=self.everything_working())
+        for name, cap in data["capabilities"].items():
+            for key in set(cap) & OPTIONAL_CAPABILITY_KEYS:
+                with self.subTest(capability=name, key=key):
+                    self.assertIn(key, text, f"{key} is in the output, not in the doc")
 
     def test_status_vocabulary_is_closed(self):
         for stubs in (None, self.everything_working()):
@@ -339,7 +381,7 @@ class StatusContract(unittest.TestCase):
         data, invocations = self.json_status(stubs=stubs)
         link = data["capabilities"]["phone-link"]
         self.assertEqual(
-            link["state"]["devices"], ["canary-not-a-real-device"],
+            device_ids(link["state"]["devices"]), ["canary-not-a-real-device"],
             "the stub's answer did not come back: the real busctl was reached",
         )
         self.assertTrue(
@@ -586,8 +628,8 @@ class StatusContract(unittest.TestCase):
         data, _ = self.json_status(stubs=self.PAIRED_AND_REACHABLE)
         link = data["capabilities"]["phone-link"]
         self.assertEqual(link["status"], "ready")
-        self.assertEqual(link["state"]["devices"], ["abcd1234"])
-        self.assertEqual(link["state"]["reachable"], ["abcd1234"])
+        self.assertEqual(device_ids(link["state"]["devices"]), ["abcd1234"])
+        self.assertEqual(device_ids(link["state"]["reachable"]), ["abcd1234"])
 
     def test_nothing_paired_is_not_the_same_as_paired_but_unreachable(self):
         """Two states, two different things for the user to go and do.
@@ -622,7 +664,7 @@ class StatusContract(unittest.TestCase):
         # The distinction used to live only in the reason string; since 3d02f70
         # it has its own status value, which is what the argument was for.
         self.assertEqual(link["status"], "unreachable")
-        self.assertIn("abcd1234", link["state"]["devices"])
+        self.assertIn("abcd1234", device_ids(link["state"]["devices"]))
         self.assertEqual(link["state"]["reachable"], [])
         self.assertNotEqual(
             link["status"], "nothing_present",
