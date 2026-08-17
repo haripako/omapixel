@@ -145,8 +145,35 @@ def action(action_id: str, label: str, available: bool, reason=None) -> dict:
     return out
 
 
+# How long a reading stays worth drawing, per capability, in seconds.
+#
+# The desktop layer had to invent this to render an age at all, and picked
+# max(60, refresh * 2) — a reasonable guess about data it does not produce,
+# which is exactly the kind of number that survives a decade because nobody
+# remembers it was a guess. It belongs here, where the refresh rate of each
+# underlying thing is known, and it is per capability because they do not
+# change at remotely similar speeds.
+#
+# Chosen from what has actually been measured on this machine:
+#
+#   phone-link      30s   The KDE Connect link drops on its own and does not
+#                         come back — twice in a few hours on 2026-08-17, with
+#                         the phone still answering pings. Reachability can be
+#                         false within seconds of being true, so a minute-old
+#                         reading is already a claim nobody checked.
+#   file-transfer   300s  Gated on the installed BlueZ version and on whether
+#                         rquickshare is running. Neither changes quickly, and
+#                         a package upgrade is not a per-second event.
+#   buds            120s  Battery and ANC move slowly, but a Bluetooth device
+#                         can disconnect between one look and the next.
+#
+# A consumer past this should say the age, not hide the value: stale is not
+# absent, and "6 min ago" is more useful than a blank.
+STALE_AFTER = {"phone-link": 30, "file-transfer": 300, "buds": 120}
+
+
 def capability(status: str, reason: str | None, provider, state: dict,
-               actions: list | None = None) -> dict:
+               actions: list | None = None, stale_after: int | None = None) -> dict:
     # as_of is stamped per capability, not per document, because a consumer
     # that caches caches one answer at a time. Without it a value from a second
     # ago and a value from a minute ago render identically, and the bar shows a
@@ -162,6 +189,7 @@ def capability(status: str, reason: str | None, provider, state: dict,
         # consumer comparing them could not tell a fresh answer from one 999 ms
         # old — the same argument that put the stamp here, one level down.
         "as_of": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z",
+        **({"stale_after": stale_after} if stale_after else {}),
         "state": state,
         **({"actions": actions} if actions else {}),
     }
@@ -411,6 +439,19 @@ KDECONNECT_PATH = "/modules/kdeconnect"
 KDECONNECT_IFACE = "org.kde.kdeconnect.daemon"
 
 
+def kdeconnect_name(device_id: str) -> str | None:
+    """The display name, or None. A bare id is unshowable in a bar."""
+    rc, out = run([
+        "busctl", "--user", "get-property", KDECONNECT_BUS,
+        f"{KDECONNECT_PATH}/devices/{device_id}",
+        "org.kde.kdeconnect.device", "name",
+    ])
+    if rc != 0:
+        return None
+    parts = shlex.split(out)
+    return parts[1] if len(parts) > 1 else None
+
+
 def kdeconnect_devices(only_reachable: bool) -> tuple[bool, list[str]]:
     """Returns (answered, device ids). Never raises."""
     rc, out = run([
@@ -425,6 +466,18 @@ def kdeconnect_devices(only_reachable: bool) -> tuple[bool, list[str]]:
     if len(parts) < 2 or parts[0] != "as":
         return False, []
     return True, parts[2:]
+
+
+def named(ids: list[str]) -> list[dict]:
+    """Ids with their display names.
+
+    A bar cannot show a device id, so a consumer given only ids has to go and
+    ask D-Bus itself — which is the coupling this contract exists to remove.
+    The id stays because it is the stable key; the name is what gets drawn, and
+    it is null rather than absent when the daemon would not give it, so
+    "unnamed" and "not asked" stay distinguishable.
+    """
+    return [{"id": i, "name": kdeconnect_name(i)} for i in ids]
 
 
 def probe_phone_link() -> dict:
@@ -475,7 +528,7 @@ def probe_phone_link() -> dict:
             NO_ANSWER,
             "kdeconnect answered which devices are paired, then stopped "
             "answering — whether any is reachable is unknown, not negative",
-            provider, {"devices": paired, "reachable": []},
+            provider, {"devices": named(paired), "reachable": []},
         )
 
     if not reachable:
@@ -487,11 +540,11 @@ def probe_phone_link() -> dict:
             f"{len(paired)} device(s) paired with KDE Connect, none reachable "
             f"right now — the phone is off, asleep, on another network, or the "
             f"link dropped and did not come back on its own",
-            provider, {"devices": paired, "reachable": []},
+            provider, {"devices": named(paired), "reachable": []},
             actions=[action("retry-link", "Reconnect", True)],
         )
     return capability(
-        READY, None, provider, {"devices": paired, "reachable": reachable}
+        READY, None, provider, {"devices": named(paired), "reachable": named(reachable)}
     )
 
 
@@ -511,7 +564,14 @@ def probe_buds(probe_bluetooth: bool) -> dict:
             status, reason, provider,
             {
                 "battery": battery_unavailable(reason),
-                "anc": unavailable(reason),
+                # Present and unavailable rather than absent, so a design drawn
+                # against this contract degrades to "unknown" instead of
+                # inventing a control that may never have anything behind it.
+                # anc.modes is per model, not a fixed three: which modes exist
+                # is a property of the earbuds, and Pro 2 are not the model
+                # pbpctrl targets.
+                "anc": {**unavailable(reason), "modes": unavailable(reason)},
+                "charging": unavailable(reason),
             },
         )
 
@@ -554,15 +614,21 @@ def probe_buds(probe_bluetooth: bool) -> dict:
     return out(NOT_PROBED, "querying the earbuds is not implemented yet (B1)", provider)
 
 
+def with_staleness(name: str, cap: dict) -> dict:
+    """Attach the per-capability freshness budget, so consumers stop guessing."""
+    cap["stale_after"] = STALE_AFTER[name]
+    return cap
+
+
 def build(probe_bluetooth: bool) -> dict:
     return {
         "schema": SCHEMA,
         "generated": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "host": probe_host(),
         "capabilities": {
-            "file-transfer": probe_file_transfer(),
-            "phone-link": probe_phone_link(),
-            "buds": probe_buds(probe_bluetooth),
+            "file-transfer": with_staleness("file-transfer", probe_file_transfer()),
+            "phone-link": with_staleness("phone-link", probe_phone_link()),
+            "buds": with_staleness("buds", probe_buds(probe_bluetooth)),
         },
     }
 

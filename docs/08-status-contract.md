@@ -123,7 +123,27 @@ means unknown, and unknown never renders as real — that direction matters,
 because an old emulator build or a truncated payload must degrade into "unsure",
 not into "a measured Pixel". That is the screenshot that ends up in an issue.
 
-**3. Value with an expiry.** `as_of` on the reading itself. A figure with no
+**3. Value with an expiry.** `as_of` on the reading itself, and `stale_after`
+next to it — how many seconds that reading is worth drawing, per capability.
+
+The threshold belongs here rather than in a consumer, and the reason is a real
+one rather than tidiness: the desktop layer had to invent a number to render an
+age at all, and picked twice the refresh interval. A reasonable guess about
+data it does not produce, and exactly the kind of number that survives a decade
+because nobody remembers it was a guess. Per capability, because they do not
+change at comparable speeds, and one global number either marks fresh data
+stale or draws a dead value as current.
+
+| Capability | `stale_after` | Why, from what was measured |
+|---|---|---|
+| `phone-link` | 30 s | The KDE Connect link drops on its own and does not return — twice in a few hours on 2026-08-17, with the phone still answering pings. Reachability can be false seconds after being true |
+| `file-transfer` | 300 s | Gated on the installed BlueZ version and whether rquickshare runs. Neither is a per-second event |
+| `buds` | 120 s | Battery and ANC move slowly, but a Bluetooth device can disconnect between two looks |
+
+Past the threshold, **say the age, do not hide the value**: stale is not absent,
+and "6 min ago" tells a user more than a blank does.
+
+ A figure with no
 timestamp is indistinguishable from the same figure an hour later, and a bar
 will draw them identically. Phone battery needs the age of the reading, focus
 sync needs to know which side changed last, and who owns the earbuds stops
