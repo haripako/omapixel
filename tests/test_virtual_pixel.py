@@ -221,6 +221,77 @@ class VirtualPeer(unittest.TestCase):
                 ran = {line.split()[0] for line in invocations if line.strip()}
                 self.assertEqual(ran & set(BLUETOOTH_BINARIES), set())
 
+    def test_the_live_process_holds_no_unaccounted_socket(self):
+        """The blind half of the gate, closed from outside the process.
+
+        The invocation log sees binaries. It cannot see a socket opened
+        in-process, and the emulator's own audit — which does look — is the
+        subsystem reporting on itself, which this project does not accept as
+        evidence for anything.
+
+        So the check is external and needs no root: every socket the live
+        process holds is looked up in /proc/net/{tcp,tcp6,udp,udp6,unix}. An IP
+        or Unix socket appears there by inode. **A Bluetooth socket does not**,
+        so an unaccounted inode is exactly the thing rule 1 forbids — without
+        needing to identify its family, which is what would require privileges.
+
+        Limits, stated because a check nobody can see the edges of gets trusted
+        too far: this proves no *unexplained* socket exists at the moment it
+        looks. It does not watch the whole lifetime, and a socket opened and
+        closed between connections would be missed.
+        """
+        import os
+        import re
+
+        with tempfile.TemporaryDirectory(prefix="omapixel-fd-") as tmp:
+            sandbox = Path(tmp)
+            write_sandbox(sandbox, {"avahi-publish-service": AVAHI_STUB},
+                          log=sandbox / "invocations.log")
+            process = subprocess.Popen(
+                [INTERPRETER, str(PEER), "--once"],
+                stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+                env=sandbox_env(sandbox),
+            )
+            try:
+                for line in process.stdout:
+                    if " ready" in line:
+                        break
+
+                fd_dir = Path(f"/proc/{process.pid}/fd")
+                if not fd_dir.is_dir():
+                    self.skipTest("no /proc/<pid>/fd on this system")
+
+                held = set()
+                for entry in fd_dir.iterdir():
+                    try:
+                        target = os.readlink(entry)
+                    except OSError:
+                        continue
+                    match = re.fullmatch(r"socket:\[(\d+)\]", target)
+                    if match:
+                        held.add(match.group(1))
+
+                accounted = set()
+                for name in ("tcp", "tcp6", "udp", "udp6", "unix"):
+                    try:
+                        text = Path(f"/proc/net/{name}").read_text()
+                    except OSError:
+                        continue
+                    for row in text.splitlines()[1:]:
+                        accounted.update(row.split())
+
+                self.assertTrue(held, "the process held no sockets at all — "
+                                      "this check would pass vacuously")
+                unaccounted = held - accounted
+                self.assertEqual(
+                    unaccounted, set(),
+                    f"the peer holds socket inode(s) {sorted(unaccounted)} that "
+                    f"are not IP or Unix sockets. Rule 1 says LAN only",
+                )
+            finally:
+                process.terminate()
+                process.communicate(timeout=10)
+
     # --- rule 4: it declares its limits, in the tool ------------------------
 
     def test_limits_say_the_f1_flakiness_box_can_never_be_closed_here(self):
