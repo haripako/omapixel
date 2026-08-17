@@ -109,6 +109,35 @@ function freshness(asOf, nowMs, staleAfterSeconds) {
 // status means nothing, and a disagreement between them is a defect in the
 // status rather than a hint to read the state.
 
+// --- devices, which now have names -------------------------------------------
+
+// `devices` and `reachable` went from lists of ids to lists of {id, name} on
+// 2026-08-17. Backend warned first this time, which is the whole point of the
+// deal: the previous shape change to `reachable` killed a distinction silently
+// and nobody noticed for hours.
+//
+// `name` is null rather than absent when the daemon does not supply one, so
+// "has no name" and "was not asked" stay apart. A null name is shown as the
+// short id: an id is unpleasant in a bar but it is true, and inventing a
+// friendly label for a device we cannot name would be the plausible zero with
+// better manners.
+function deviceLabel(entry) {
+  if (typeof entry === "string") return entry.slice(0, 8);  // the old shape
+  if (!entry || typeof entry !== "object") return null;
+  if (typeof entry.name === "string" && entry.name !== "") return entry.name;
+  return typeof entry.id === "string" ? entry.id.slice(0, 8) : null;
+}
+
+function deviceNames(list) {
+  if (!Array.isArray(list)) return [];
+  var out = [];
+  for (var i = 0; i < list.length; i++) {
+    var label = deviceLabel(list[i]);
+    if (label) out.push(label);
+  }
+  return out;
+}
+
 // --- how old, in words --------------------------------------------------------
 
 // Design's ruling, and it is stricter than what this file did before: past the
@@ -192,6 +221,20 @@ function primaryAction(capability) {
 
 // --- a slot in the bar --------------------------------------------------------
 
+// The freshness window is per capability and comes from the contract, because
+// it depends on how fast each value actually goes wrong — 30 s for phone
+// reachability, which can be false seconds after being true; 300 s for a
+// transfer, which turns on an installed package and a running process; 120 s
+// for earbuds, whose battery moves slowly but which vanish between glances.
+//
+// The widget used to invent this as two missed polls. That instinct was right
+// for a made-up number and is worse than a measured one. If the contract does
+// not say, the caller's default is used and nothing pretends otherwise.
+function windowFor(capability, fallbackSeconds) {
+  var w = capability && capability.stale_after;
+  return (typeof w === "number" && w > 0) ? w : fallbackSeconds;
+}
+
 function slot(name, capability, nowMs, staleAfterSeconds) {
   if (!capability || typeof capability !== "object") {
     return {
@@ -226,7 +269,8 @@ function slot(name, capability, nowMs, staleAfterSeconds) {
   }
   var action = look.action;
 
-  var fresh = freshness(capability.as_of, nowMs, staleAfterSeconds);
+  var fresh = freshness(capability.as_of, nowMs,
+                        windowFor(capability, staleAfterSeconds));
   var trusted = trust(originOf(capability));
 
   return {
@@ -248,6 +292,8 @@ function slot(name, capability, nowMs, staleAfterSeconds) {
     // Never null: a consumer that forgets to check gets a qualifier rather
     // than silence, which is the safe direction.
     unblockedBy: (capability.state || {}).unblocked_by || null,
+    devices: deviceNames((capability.state || {}).devices),
+    staleAfter: windowFor(capability, staleAfterSeconds),
     actions: actionsFrom(capability),
     primaryAction: primaryAction(capability),
     origin: originOf(capability),

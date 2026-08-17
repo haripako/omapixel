@@ -30,9 +30,11 @@ BarWidget {
   // have to guard — same reason the contract always emits every capability.
   property var view: Model.model(null, Date.now(), root.staleAfter)
 
-  // Two missed polls before a reading is called stale. Tied to the interval
-  // rather than fixed, so changing the interval cannot silently make every
-  // reading look fresh.
+  // Fallback only. Each capability carries its own stale_after in the contract,
+  // measured against how fast that value actually goes wrong — 30 s for phone
+  // reachability, 300 s for a transfer, 120 s for earbuds. This is what gets
+  // used if a producer does not say, and it stays tied to the interval so that
+  // raising the interval cannot quietly make everything look fresh.
   readonly property int staleAfter: Math.max(60, root.refreshSeconds * 2)
 
   readonly property var worst: {
@@ -84,6 +86,7 @@ BarWidget {
 
   function line(s) {
     var text = s.name + ": " + s.summary
+    if (s.devices && s.devices.length > 0) text += " (" + s.devices.join(", ") + ")"
     if (s.action) text += "  → " + s.action
     // A reading from the emulator, or one whose origin nobody declared, is
     // never presented as a measurement. Absent origin degrades to unknown.
