@@ -104,12 +104,17 @@ every report that references them; renaming one silently orphans results.
 
 ## Code
 
-**CI runs `shellcheck --severity=warning` on the shell scripts.** Run it before
-you open a pull request:
+**Shell scripts are linted, and the local runner is stricter than CI.** Run the
+local one before you open a pull request, because it is the one that covers your
+file:
 
 ```bash
-shellcheck --severity=warning scripts/hw-report.sh
+scripts/run-tests.sh                  # shellcheck --severity=warning scripts/*.sh
 ```
+
+CI checks `scripts/hw-report.sh` only. So a script can pass CI and still fail
+for the next person who runs the suite. Both numbers are stated here on purpose
+rather than rounded to "the scripts are linted".
 
 Worth saying plainly, because it is the kind of thing that wastes a first-time
 contributor's afternoon: **`shellcheck` is not installed on the reference

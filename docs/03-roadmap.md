@@ -96,7 +96,10 @@ Also testable in full on the Pixel 7 Pro.
 In: the buds paired.
 Out: battery and ANC from the desktop.
 
-- [ ] Install `pbpctrl` from the AUR (482 days without an update — it may not build)
+- [ ] Install `pbpctrl` from the AUR (still 482 days without an update, but it
+      **does** build: measured 2026-08-16 in a clean Omarchy 4.0.0 VM, installed
+      from the AUR untouched. It was not run, so this says nothing about whether
+      it talks to Buds Pro 2, which use a different SoC)
 - [ ] Find out which buds model responds and which fields come back
 - [ ] If `pbpctrl` is dead, evaluate `budslink-git` and whether it has added Pixel Buds
 - [ ] Wrap the battery read in a stable script the bar can consume
