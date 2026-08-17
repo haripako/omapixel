@@ -57,4 +57,11 @@ method = "measured"
 tool = "kdeconnect 26.04.3-1"
 notes = "Measured 2026-08-17. Four notifications from the phone reached the desktop and are readable over D-Bus with their originating app: Netflix, System UI, YouTube Music. That is the transport half. The caveat is the other half: this desktop's notification server is Quickshell, which keeps no queryable history, so whether they were drawn on screen was not verified in pixels. Also, the link ran over Tailscale via a relay, not over the LAN, so nothing here says the LAN path works."
 
+[[result]]
+id = "clipboard"
+status = "partial"
+method = "measured"
+tool = "kdeconnect 26.04.3-1"
+notes = "Measured 2026-08-17. Text copied on the phone appeared on the desktop clipboard within seconds: 15 bytes, matching the agreed probe string exactly, so this is not a coincidental change. Two caveats. Only phone to desktop was measured; the reverse direction was not, and KDE Connect has no read-back command to verify it without ADB. And the link ran over Tailscale, not the LAN, so this says nothing about LAN behaviour."
+
 # *— end of report —*

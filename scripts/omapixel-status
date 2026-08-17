@@ -135,7 +135,10 @@ ACTIONS = ("retry-link", "cycle-anc", "send-file")
 
 
 def action(action_id: str, label: str, available: bool, reason=None) -> dict:
-    assert action_id in ACTIONS, f"unknown action id {action_id!r}"
+    # raise, not assert: python -O strips asserts, and this one is the only
+    # thing keeping the vocabulary closed.
+    if action_id not in ACTIONS:
+        raise ValueError(f"unknown action id {action_id!r}, not in {ACTIONS}")
     out = {"id": action_id, "label": label, "available": available}
     if not available:
         out["reason"] = reason

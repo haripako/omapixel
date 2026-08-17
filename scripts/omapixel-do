@@ -19,13 +19,39 @@ Exit codes: 0 done, 1 the action failed and said why, 2 unknown action.
 
 from __future__ import annotations
 
+import importlib.util
 import subprocess
 import sys
+from importlib.machinery import SourceFileLoader
+from pathlib import Path
 
 KDECONNECT = (
     "busctl", "--user", "call", "org.kde.kdeconnect",
     "/modules/kdeconnect", "org.kde.kdeconnect.daemon",
 )
+
+# A daemon that has stopped answering is exactly the situation this command
+# exists for, so it must not inherit the hang. omapixel-status times out every
+# probe for the same reason; without it here, a user who already sees something
+# broken presses the button and the bar freezes with it.
+TIMEOUT = 10
+
+
+def advertised_actions() -> tuple[str, ...]:
+    """The vocabulary omapixel-status publishes, read from omapixel-status.
+
+    Not a second copy. Two lists drift, and the failure is specific: the status
+    command can advertise an action with available: true that this command then
+    rejects as unknown. Same argument that made the simulated-peer mark a single
+    field shared by two schemas — if there are two, no test reconciles them.
+    """
+    path = Path(__file__).with_name("omapixel-status")
+    loader = SourceFileLoader("omapixel_status", str(path))
+    module = importlib.util.module_from_spec(
+        importlib.util.spec_from_loader("omapixel_status", loader)
+    )
+    loader.exec_module(module)
+    return module.ACTIONS
 
 
 def retry_link() -> tuple[bool, str]:
@@ -37,10 +63,14 @@ def retry_link() -> tuple[bool, str]:
     with nothing to act on. This restores it in under twelve seconds, and
     nobody finds the method on their own.
     """
-    result = subprocess.run(
-        [*KDECONNECT, "forceOnNetworkChange"],
-        capture_output=True, text=True, check=False,
-    )
+    try:
+        result = subprocess.run(
+            [*KDECONNECT, "forceOnNetworkChange"],
+            capture_output=True, text=True, check=False, timeout=TIMEOUT,
+        )
+    except subprocess.TimeoutExpired:
+        return False, (f"kdeconnect did not answer within {TIMEOUT}s. The "
+                       f"daemon may be hung; restarting it is the next step")
     if result.returncode != 0:
         return False, (result.stderr.strip()
                        or "kdeconnect did not accept the request")
@@ -53,17 +83,33 @@ ACTIONS = {
 
 
 def main(argv: list[str]) -> int:
-    if len(argv) != 1 or argv[0] in ("-h", "--help"):
+    if argv and argv[0] in ("-h", "--help"):
         print(__doc__.strip())
-        print("\nAvailable:", ", ".join(sorted(ACTIONS)))
+        print("\nImplemented:", ", ".join(sorted(ACTIONS)))
+        return 0
+    if len(argv) != 1:
+        print(f"usage: {Path(__file__).name} <action-id>", file=sys.stderr)
+        print("Implemented:", ", ".join(sorted(ACTIONS)), file=sys.stderr)
         return 2
 
     name = argv[0]
     if name not in ACTIONS:
-        # Names the ones that exist rather than just refusing: an unknown id is
-        # usually a consumer built against a newer or older contract.
-        print(f"unknown action {name!r}. Available: {', '.join(sorted(ACTIONS))}",
-              file=sys.stderr)
+        # Two different failures, and telling them apart is the whole point of
+        # reading the status command's vocabulary instead of keeping a second
+        # copy. "In the contract but not implemented here" is our gap and the
+        # user can do nothing about it; "not in the contract" is a typo or a
+        # consumer built against another version.
+        try:
+            advertised = advertised_actions()
+        except Exception:
+            advertised = ()
+        if name in advertised:
+            print(f"action {name!r} is advertised by omapixel-status but is not "
+                  f"implemented here yet. This is a gap on our side, not your "
+                  f"mistake.", file=sys.stderr)
+        else:
+            print(f"unknown action {name!r}. Implemented: "
+                  f"{', '.join(sorted(ACTIONS))}", file=sys.stderr)
         return 2
 
     ok, message = ACTIONS[name]()
