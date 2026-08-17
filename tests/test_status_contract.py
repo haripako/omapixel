@@ -37,8 +37,8 @@ STATUS = SCRIPTS / "omapixel-status"
 # Resolved before PATH is replaced: the sandbox has no interpreter.
 INTERPRETER = sys.executable
 
-HOST_MAC = "AA:BB:CC:DD:EE:FF"
-HOST_IP = "[ip redacted]"
+HOST_MAC = "02:11:22:33:44:55"
+HOST_IP = "10.42.7.99"
 
 STATUSES = {"not_installed", "no_answer", "nothing_present", "not_probed",
             "blocked", "unreachable", "ready"}
@@ -57,7 +57,7 @@ OPTIONAL_CAPABILITY_KEYS = {"stale_after", "actions"}
 # but read.
 BASE_STUBS = {
     "ip": f"""#!/bin/sh
-echo "2: eno1    inet {HOST_IP}/24 brd 192.168.10.255 scope global eno1"
+echo "2: eno1    inet {HOST_IP}/24 brd 10.42.7.255 scope global eno1"
 echo "4: docker0    inet 172.17.0.1/16 brd 172.17.255.255 scope global docker0"
 """,
     "hyprctl": """#!/bin/sh
@@ -343,7 +343,7 @@ class StatusContract(unittest.TestCase):
     def test_output_carries_the_subnet_and_never_the_host_address(self):
         """This output gets pasted into issues, same as the hardware report."""
         data, _ = self.json_status()
-        self.assertEqual(data["host"]["subnet"], "192.168.10.0/24")
+        self.assertEqual(data["host"]["subnet"], "10.42.7.0/24")
         self.assertEqual(privacy_violations(json.dumps(data)), [])
 
     def test_virtual_interfaces_are_skipped(self):

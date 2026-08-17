@@ -41,6 +41,69 @@ DEVICES = DATA / "devices"
 # fails everywhere, and this exception is visible in the test that grants it.
 PLACEHOLDER_MAC = "AA:BB:CC:DD:EE:FF"
 
+# Addresses that appear in the tree on purpose: placeholders in recipes and
+# fixtures in this suite. Declared as literals here, which is the point — a new
+# address-shaped string anywhere in the repository fails this sweep until
+# somebody states that it is synthetic, and the statement is reviewable.
+#
+# The lesson that produced the list: fixtures in this very directory used to
+# carry a real MAC and a real host IP from the reference machine, which is why a
+# history rewrite had to touch test files. A fixture holding real data is a leak
+# with a test wrapped around it.
+DECLARED_SYNTHETIC = (
+    PLACEHOLDER_MAC, PLACEHOLDER_MAC.lower(),   # the canonical example MAC
+    "aa-bb-cc-dd-ee-ff",                        # the same, in IEEE hyphen form
+    "11:22:33:44:55:66",                        # a second placeholder in docs
+    "02:11:22:33:44:55",                        # this suite's synthetic MAC
+    "10-6F-D9-DA-5A-16",                        # the hyphen-form evasion example
+    "10.42.7.99",                               # this suite's synthetic host
+    "100.99.0.1",                               # this suite's synthetic CGNAT host
+    "172.17.0.1",                               # the default docker bridge
+    # Addresses that exist only to explain the rules that flag them: the /32
+    # that is one machine, a host ending in .0 inside a wider network, and the
+    # bad arithmetic of zeroing the fourth octet of a /16.
+    "192.168.10.0", "10.0.5.0", "10.1.2.0",
+    "fe80::", "fe80::1a2b:3c4d:5e6f:7a8b",      # the link-local example
+)
+
+
+# A carrier-grade NAT address in this suite's own range. The first version of
+# the test below used the reference machine's actual Tailscale address, copied
+# out of the message that reported it — the same mistake, one paragraph after
+# writing that a fixture holding real data is a leak with a test around it. The
+# committed-content sweep caught it in the only window where a fix exists.
+SYNTHETIC_CGNAT = "100.99.0.1"
+
+
+def identifies_a_machine(finding: str) -> bool:
+    """True for the address families that can point at somebody's machine.
+
+    A tree-wide sweep meets every address a document uses to explain
+    addressing, so the target has to be narrower than the one used on a device
+    report: the private ranges, the carrier-grade NAT block Tailscale hands out,
+    and link-local. A four-component version number — `5.87.2.1`, the detector's
+    known false positive — is not in any of them and stops being noise here,
+    while a Tailscale address, which a filter written around RFC1918 alone would
+    have missed, is.
+
+    MAC findings always count: there is no such thing as a MAC that identifies
+    nothing.
+    """
+    import ipaddress
+
+    if finding.startswith("MAC address"):
+        return True
+    token = finding.rsplit(" ", 1)[-1]
+    try:
+        address = ipaddress.ip_address(token)
+    except ValueError:
+        return False
+    return (
+        address.is_private
+        or address.is_link_local
+        or address in ipaddress.ip_network("100.64.0.0/10")
+    )
+
 
 class GeneratedMatrix(unittest.TestCase):
     def test_matrix_is_current(self):
@@ -212,16 +275,11 @@ class PrivacyOfPublishedReports(unittest.TestCase):
         import subprocess
 
         listing = subprocess.run(
-            # docs, data and .github: the published documents, the reports a
-            # stranger writes, and the workflow file that already carried a
-            # real host IP once. Deliberately not scripts/ — their comments
-            # discuss addressing ("zeroing the fourth octet of a /16 yields
-            # 10.1.2.0/16, which is not that network"), and a sweep over prose
-            # about addresses produces false positives that would get this
-            # invariant relaxed. Scripts are covered by the static rules in
-            # test_hw_report.py instead.
-            ["git", "ls-tree", "-r", "--name-only", "HEAD", "docs", "data",
-             ".github"],
+            # The whole tree, not a directory. The leak that was published
+            # entered through docs/ while the detector watched data/devices/,
+            # and the fixtures that carried real data were in tests/. Scoping
+            # this to where the last leak came from is how the next one gets in.
+            ["git", "ls-tree", "-r", "--name-only", "HEAD"],
             capture_output=True, text=True, cwd=ROOT,
         )
         if listing.returncode != 0:
@@ -234,8 +292,11 @@ class PrivacyOfPublishedReports(unittest.TestCase):
             )
             if blob.returncode != 0:
                 continue
-            found = [item for item in privacy_violations(blob.stdout)
-                     if PLACEHOLDER_MAC not in item]
+            found = [
+                item for item in privacy_violations(blob.stdout)
+                if identifies_a_machine(item)
+                and not any(known in item for known in DECLARED_SYNTHETIC)
+            ]
             with self.subTest(file=name):
                 if found:
                     self.fail(
@@ -277,17 +338,17 @@ class PrivacyOfPublishedReports(unittest.TestCase):
     # --- positive controls: prove the detector actually detects --------------
 
     def test_detector_catches_a_mac_address(self):
-        leaky = device_report() + '\nbt_mac = "[mac redacted]"\n'
-        self.assertIn("MAC address [mac redacted]", privacy_violations(leaky))
+        leaky = device_report() + '\nbt_mac = "02:11:22:33:44:55"\n'
+        self.assertIn("MAC address 02:11:22:33:44:55", privacy_violations(leaky))
 
     def test_detector_catches_a_bare_host_ip(self):
-        leaky = device_report() + '\naddress = "[ip redacted]"\n'
-        self.assertIn("host IP [ip redacted]", privacy_violations(leaky))
+        leaky = device_report() + '\naddress = "10.42.7.99"\n'
+        self.assertIn("host IP 10.42.7.99", privacy_violations(leaky))
 
     def test_detector_catches_a_host_ip_wearing_a_prefix(self):
         """The gap in the CI grep: it accepts anything ending in /NN."""
-        leaky = device_report() + '\nsubnet = "[ip redacted]/24"\n'
-        self.assertIn("host IP [ip redacted]", privacy_violations(leaky))
+        leaky = device_report() + '\nsubnet = "10.42.7.99/24"\n'
+        self.assertIn("host IP 10.42.7.99", privacy_violations(leaky))
 
     def test_detector_allows_a_real_subnet(self):
         fine = device_report() + '\nsubnet = "192.168.10.0/24"\n'
@@ -338,6 +399,39 @@ class PrivacyOfPublishedReports(unittest.TestCase):
     def test_detector_allows_an_ipv6_subnet(self):
         self.assertEqual(privacy_violations('subnet = "2a02:9130:88c1::/48"'), [])
 
+    def test_detector_catches_a_carrier_grade_nat_address(self):
+        """100.64/10 is what Tailscale hands out, and it is not RFC1918.
+
+        Confirmed the hard way on 2026-08-17: a filter written around the
+        private ranges alone would never have seen an address on the overlay,
+        which identifies a machine to everybody else on that overlay exactly as
+        precisely as a LAN address does on a LAN. Generic shape, no real
+        address: putting one in a test would publish it again.
+        """
+        self.assertTrue(privacy_violations(f'ts = "{SYNTHETIC_CGNAT}"'))
+        self.assertTrue(identifies_a_machine(f"host IP {SYNTHETIC_CGNAT}"))
+
+    def test_a_bare_network_or_broadcast_is_not_a_host(self):
+        """What a document writes when it means "the subnet".
+
+        Flagging these would flag the redaction the rules ask for, and a check
+        that punishes compliance gets switched off.
+        """
+        for address in ("10.42.7.0", "10.42.7.255"):
+            with self.subTest(address=address):
+                self.assertEqual(privacy_violations(f'a = "{address}"'), [])
+
+    def test_a_version_number_is_not_an_identifying_address(self):
+        """The tree-wide sweep meets version strings; it must not stop on them.
+
+        The detector still flags `5.87.2.1` when reading a device report, where
+        four dotted numbers have no business being — it fails closed there. On a
+        sweep across every file, that same shape is noise, and noise is what
+        gets an invariant disabled.
+        """
+        self.assertTrue(privacy_violations('bluez = "5.87.2.1"'))
+        self.assertFalse(identifies_a_machine("host IP 5.87.2.1"))
+
     def test_detector_exempts_the_documentation_ranges(self):
         """RFC 5737 and RFC 3849 exist so documents need not use real addresses.
 
@@ -351,8 +445,8 @@ class PrivacyOfPublishedReports(unittest.TestCase):
 
     def test_detector_still_catches_a_real_address_beside_a_documented_one(self):
         """The exemption must not become a way of smuggling one in."""
-        found = privacy_violations('example = "192.0.2.1", real = "[ip redacted]"')
-        self.assertEqual(found, ["host IP [ip redacted]"])
+        found = privacy_violations('example = "192.0.2.1", real = "10.42.7.99"')
+        self.assertEqual(found, ["host IP 10.42.7.99"])
 
     def test_detector_exempts_loopback(self):
         """127.0.0.1 identifies nobody, and appears in every local example.

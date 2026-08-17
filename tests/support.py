@@ -211,6 +211,20 @@ def _is_documentation_address(token: str) -> bool:
     )
 
 
+def _is_network_or_broadcast(token: str) -> bool:
+    """A bare x.y.z.0 or x.y.z.255 names a network or a broadcast, not a host.
+
+    Written with a prefix these are already accepted; bare, they are what a
+    document says when it means "the subnet". Treating them as leaks would flag
+    the very redaction the rules ask for, which is how a check gets switched
+    off. An address in the middle of a range stays a host address.
+    """
+    if "/" in token:
+        return False
+    last = token.rsplit(".", 1)[-1]
+    return last in ("0", "255")
+
+
 def _is_loopback(token: str) -> bool:
     """127.0.0.1 and ::1 identify nobody.
 
@@ -231,7 +245,7 @@ def privacy_violations(text: str) -> list[str]:
 
     A bare subnet is allowed and is the whole point of the field: 192.168.10.0/24
     says what Quick Share needs to know without identifying the machine. Carrying
-    a prefix is not enough — [ip redacted]/24 is a host address wearing a
+    a prefix is not enough — 10.42.7.99/24 is a host address wearing a
     subnet's clothes, and the CI grep this replaces let that through.
 
     Enforcing docs/conventions.md, "Privacy in public reports". A report is
@@ -241,7 +255,7 @@ def privacy_violations(text: str) -> list[str]:
 
       * **This never softens into a warning.** A rejected report is a fixable
         mistake; a merged one is not.
-      * **Never "fix" a leak by normalising it.** Rewriting [ip redacted]/24 to
+      * **Never "fix" a leak by normalising it.** Rewriting 10.42.7.99/24 to
         192.168.10.0/24 hides the address without unpublishing it — it already
         travelled in the contributor's pull request — and leaves everyone
         believing the system worked. Reject loudly and tell the sender to edit
@@ -250,6 +264,11 @@ def privacy_violations(text: str) -> list[str]:
     **What this does NOT detect**, listed deliberately, because a privacy check
     that people trust more than it deserves is worse than a grep nobody trusts:
 
+      * a private range is not a safe range. RFC1918 and the carrier-grade NAT
+        block Tailscale uses (100.64/10) identify a machine as precisely as any
+        public address does, to anybody on the same overlay or LAN, so nothing
+        here exempts them. Confirmed the hard way: a Tailscale address would
+        have walked past a filter written around RFC1918 alone.
       * MACs written without separators (`106FD9DA5A16`) or Cisco-style
         (`106f.d9da.5a16`). Twelve hex digits in a row match half the log
         output in the world, and a false positive here is a red build a
@@ -265,7 +284,8 @@ def privacy_violations(text: str) -> list[str]:
 
     for match in IPV4_RE.finditer(text):
         token = match.group(0)
-        if _is_loopback(token) or _is_documentation_address(token):
+        if (_is_loopback(token) or _is_documentation_address(token)
+                or _is_network_or_broadcast(token)):
             continue
         if not _is_publishable_network(token):
             found.append(f"host IP {token.split('/')[0]}")

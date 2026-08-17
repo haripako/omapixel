@@ -2,7 +2,7 @@
 
 Device reports for phones may carry a [network] table. build-matrix.py does not
 look at it today, so a malformed one is accepted silently — including
-`subnet = "[ip redacted]/24"`, which is a host address that slips past the CI
+`subnet = "10.42.7.99/24"`, which is a host address that slips past the CI
 privacy grep because the grep only checks for a `/NN` suffix.
 
 Agreed with development on 2026-08-15: these cases are written here first, and
@@ -51,7 +51,7 @@ class NetworkTable(unittest.TestCase):
     def test_subnet_with_host_bits_set_is_rejected(self):
         """Not schema hygiene: this one is a privacy leak.
 
-        docs/conventions.md, "Privacy in public reports". [ip redacted]/24
+        docs/conventions.md, "Privacy in public reports". 10.42.7.99/24
         identifies the reporter's machine, and a hand-written report is exactly
         where it will appear, because whoever writes it copies what `ip addr`
         printed. The current CI grep accepts it, since it only looks for a
@@ -64,7 +64,7 @@ class NetworkTable(unittest.TestCase):
         already travelled in the contributor's pull request. Reject, and tell
         the sender.
         """
-        self.assert_rejected(network('subnet = "[ip redacted]/24"'), "subnet")
+        self.assert_rejected(network('subnet = "10.42.7.99/24"'), "subnet")
 
     @unittest.expectedFailure
     def test_subnet_without_a_prefix_is_rejected(self):

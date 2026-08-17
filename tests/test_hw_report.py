@@ -32,15 +32,18 @@ SCRIPT = SCRIPTS / "hw-report.sh"
 BASH = shutil.which("bash") or "/bin/bash"
 
 # Values that must never reach --markdown or --toml output.
-HOST_MAC = "AA:BB:CC:DD:EE:FF"
-HOST_IP = "[ip redacted]"
-EXPECTED_SUBNET = "192.168.10.0/24"
+# Locally administered and synthetic. It used to be a real address from
+# this machine, which is why a history rewrite had to touch this file;
+# a fixture that carries real data is a leak with a test around it.
+HOST_MAC = "02:11:22:33:44:55"
+HOST_IP = "10.42.7.99"
+EXPECTED_SUBNET = "10.42.7.0/24"
 
 STUBS = {
     "ip": f"""#!/bin/sh
 case "$*" in
   *"-o addr show scope global"*)
-    echo "2: eno1    inet {HOST_IP}/24 brd 192.168.10.255 scope global eno1"
+    echo "2: eno1    inet {HOST_IP}/24 brd 10.42.7.255 scope global eno1"
     echo "4: docker0    inet 172.17.0.1/16 brd 172.17.255.255 scope global docker0"
     ;;
   *"-o link show"*)
