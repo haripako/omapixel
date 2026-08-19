@@ -93,6 +93,34 @@ write by hand — and the file that leaked was ours, not a contributor's. A
 MAC paired with a device name is also the blind spot the detector deliberately
 cannot catch, since twelve hex digits match half the logs in the world.
 
+**The history was rewritten, and the distinction that survives is about what
+"gone" means.** Seven items — three MAC addresses and four IPs, one of them a
+Tailscale address — are out of every tree, and the original commit no longer
+resolves locally. It **still exists as an orphaned object**; what it no longer
+is, is *reachable*. And GitHub **still serves it over HTTP 200**, which only a
+support request can change. "Removed from history" and "no longer retrievable"
+are not the same sentence, and this project has now paid for that difference
+twice.
+
+**decision — the leak check now reads what is committed, not the working tree**,
+and it covers the Tailscale range the old detector could not see, because it
+looked for RFC 1918 and Tailscale lives in `100.64/10`. That range is the one
+this project will produce most from here on: both capabilities measured so far
+ran over Tailscale.
+
+**incident — the same mistake twice in one sitting, by the person fixing it** —
+The test fixtures were found to contain real data. The phrase written on
+discovering it is the right one: **a fixture with real data is a leak with a
+test around it.** Then, a paragraph later, the fix used the **real Tailscale
+address as a positive control**, copied out of the message that had just
+reported it as a leak.
+
+Its own new check caught it, locally, before any push — which is the first time
+in this file that a control caught the thing it was built for, at the moment it
+was supposed to. It was corrected by amending rather than committing on top,
+with the reasoning stated: **a commit on top leaves the datum in the history,
+which is exactly what cost a rewrite that afternoon.**
+
 **And it had already been pushed.** The redaction landed in the working tree
 first, which changes nothing: **the tree is not what gets published, the commit
 is.** The privacy sweeps were reading files off disk, so they stayed green over
@@ -105,7 +133,8 @@ Two lessons, and the second is the one that generalises: **an invariant tells
 you where its author expected the danger to be**, and here it was pointed
 entirely outward. And **the person who writes the rules is not exempt from
 them** — this file spent three days recording that principle while breaking it
-on line 691.
+in its own text. (Written without a line number on purpose: a citation into a
+file that keeps growing is wrong within the hour.)
 
 **measured against the published branch — CI enforces a rule contributors are
 never told about and cannot reproduce** — `.github/workflows/validate.yml:59`
@@ -561,6 +590,10 @@ work under Wayland", which no upstream documentation covered, is **yes**. It is
 still invisible, because Omarchy's tray splits items into pinned and a collapsed
 drawer that starts shut. Registered, live, and hidden. Nothing is broken, so
 there is nothing to report upstream.
+
+The evidence, because this is the sort of detail nobody re-derives: the drawer
+starts shut at `widgets/Tray.qml` line 14, `property bool expanded: false`, in
+Omarchy's own bar plugin.
 
 **measured** — `rquickshare` publishes its `IconName` as an absolute path rather
 than a themed icon name. Quickshell copes; a bar that reads the specification
