@@ -113,10 +113,18 @@ which one a user is actually using is the whole point.
 > D-Bus restores it in under 12 s, which is why the contract carries an
 > `unreachable` status with a `retry-link` action instead of a grey gap.
 >
-> **Sending a file can be measured; confirming it arrived cannot yet.**
-> `kdeconnect-cli --mount` returns a path and mounts nothing: `sshfs` is not
-> installed, and the journal says so while the command does not. Installing it
-> is a decision for the maintainer.
+> **Confirming a file arrived needed `sshfs`, and now works.** Until 2026-08-19
+> `kdeconnect-cli --mount` returned a path and mounted nothing — the package was
+> missing, the journal said so and the command did not. With it installed, the
+> mount is real and the hash can be read from the phone's own storage.
+>
+> **Two traps worth knowing before trusting that mount.** The root of it is not
+> listable: `ls` gives permission denied even though the mount belongs to the
+> local user, while paths under `storage/emulated/0` read fine — so a `find` from
+> the mount point returns nothing and **is indistinguishable from "the file never
+> arrived"**. And there is no `--unmount`: `fusermount -u` is what releases it,
+> which matters because leaving it mounted leaves the phone's storage exposed on
+> the desktop.
 
 Also testable in full on the Pixel 7 Pro. The phone's battery reads correctly
 over the same channel, but it stays out of the matrix on purpose: the catalogue
