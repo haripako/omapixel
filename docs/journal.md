@@ -102,6 +102,20 @@ support request can change. "Removed from history" and "no longer retrievable"
 are not the same sentence, and this project has now paid for that difference
 twice.
 
+**decision by the owner, 2026-08-19 — the residue stays, and this is closed.**
+The rewrite did its job: no tree contains the data and the published tree is
+clean. What remains is an unreferenced object, absent from every branch, from
+search, and from an ordinary clone. The repository has no forks, so a purge
+request would have been technically clean. **It is not being made.**
+
+Recorded as *closed, do not reopen* rather than left silent, because **a decision
+taken and not written down becomes a permanent open item** — the next person to
+notice the residue proposes the purge again, believing it was forgotten. What
+stays in force is the prevention, not the cleanup: the invariant that sweeps
+**everything committed** rather than the working tree, covering the Tailscale
+range. The decision is about what is already published; it changes nothing about
+what may be published next.
+
 **decision — the leak check now reads what is committed, not the working tree**,
 and it covers the Tailscale range the old detector could not see, because it
 looked for RFC 1918 and Tailscale lives in `100.64/10`. That range is the one
