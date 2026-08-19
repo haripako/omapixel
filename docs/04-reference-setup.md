@@ -492,3 +492,43 @@ needs a load to be generated, which needs something installed, which needs
 Hari's permission. Recorded as an open question rather than reasoned about:
 "a 20 GiB card has room" is exactly the plausible-sounding shortcut this
 project refuses to take.
+
+## Files move both ways over KDE Connect, verified on the phone
+
+**Measured 2026-08-19**, once `sshfs 3.7.6-1` was installed. This is the first
+transfer in the project confirmed at the far end rather than at the sending end.
+
+```bash
+kdeconnect-cli -d <id> --share probe.txt      # 61 bytes
+kdeconnect-cli -d <id> --mount
+mountpoint -q /run/user/1000/<id>             # now true
+sha256sum /run/user/1000/<id>/storage/emulated/0/Download/probe.txt
+```
+
+| Direction | Result |
+|---|---|
+| Desktop to phone | 61 bytes, **hash identical** to the local file |
+| Phone to desktop, over the SFTP mount | 61 bytes, hash identical |
+
+**`--mount` works now, and the earlier failure was exactly what it looked
+like.** On 2026-08-17 it returned a path, created the directory, and mounted
+nothing — `sshfs` was not installed, the journal said "Fallo al iniciar sshfs",
+and the command said nothing at all. With the package present it is a real FUSE
+mount: `mountpoint` confirms it, `/proc/mounts` lists it, and an `sshfs` process
+holds it.
+
+**One trap worth writing down:** the mount root is **not listable**. `ls` on it
+returns "Permiso denegado" even though the mount is owned by the local user and
+`sshfs` runs as them — the phone's SFTP server refuses the root, while concrete
+paths under `storage/emulated/0` read fine. A `find` from the mount point
+therefore returns nothing and looks exactly like "the file never arrived". That
+cost one wrong conclusion here before the paths were probed directly.
+
+**None of this promotes `file-send` or `file-receive`, and that matters.** Those
+rows are **F1**, their tool is `rquickshare`, and their note says both devices
+must be on the same LAN subnet. What was measured is **KDE Connect over
+Tailscale** — a different tool, a different protocol and a different transport,
+which happens to move a file in the same direction. Promoting them would be
+claiming Quick Share works on the strength of something that is not Quick
+Share. Whether KDE Connect file transfer deserves rows of its own is a phase
+decision, not a measurement one.
