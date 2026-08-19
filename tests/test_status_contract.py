@@ -50,7 +50,7 @@ REQUIRED_CAPABILITY_KEYS = {"available", "status", "reason", "provider", "state"
 # Present when they apply. Listed so that a key nobody documented fails the
 # shape test instead of appearing silently: additive growth is fine, undeclared
 # growth is how a contract stops describing its own output.
-OPTIONAL_CAPABILITY_KEYS = {"stale_after", "actions"}
+OPTIONAL_CAPABILITY_KEYS = {"stale_after", "dead_after", "actions"}
 
 # An empty machine: no rquickshare, no kdeconnect-cli, no pbpctrl. Only the
 # things that describe the host, and a bluetoothctl that refuses to do anything
@@ -295,6 +295,33 @@ class StatusContract(unittest.TestCase):
             first["capabilities"]["file-transfer"]["status"],
             second["capabilities"]["file-transfer"]["status"],
         )
+
+    def test_freshness_has_three_reachable_bands(self):
+        """fresh, stale, dead — and the third is not a louder version of the second.
+
+        `stale_after` answers "do I say this is old?"; `dead_after` answers "is
+        this still evidence?". Design requires three bands and requires the
+        third to stop drawing the value at all, so a consumer needs both numbers
+        and needs them to be different.
+
+        The numbers themselves are not fixed here — they belong to whoever
+        measures how fast each thing changes. What is fixed is that all three
+        bands can be entered: with both thresholds equal, or with dead_after
+        missing, "old" and "do not draw this" collapse into one, and the widget
+        has nothing to distinguish them with.
+        """
+        data, _ = self.json_status(stubs=self.everything_working())
+        for name, cap in data["capabilities"].items():
+            with self.subTest(capability=name):
+                stale, dead = cap.get("stale_after"), cap.get("dead_after")
+                self.assertIsInstance(stale, int, f"{name} has no stale_after")
+                self.assertIsInstance(dead, int, f"{name} has no dead_after")
+                self.assertGreater(
+                    dead, stale,
+                    f"{name}: dead_after must be later than stale_after, or "
+                    f"there is no band between 'old' and 'not evidence'",
+                )
+                self.assertGreater(stale, 0)
 
     def test_generated_timestamp_is_utc_and_parses(self):
         from datetime import datetime
