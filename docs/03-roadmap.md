@@ -98,11 +98,20 @@ which one a user is actually using is the whole point.
 - [ ] Decide how the daemon starts in the Hyprland session
 - [ ] Check whether the tray icon coexists with the bar
 - [ ] Files over KDE Connect — **measured 2026-08-19, both directions, hash
-      verified on the phone's own storage, not on the sender.** Needs its own
-      rows: `file-send` and `file-receive` belong to F1 and their tool is
-      `rquickshare`, whose note says both devices must share a LAN subnet.
-      Marking them from a KDE Connect measurement would claim Quick Share works
-      on the strength of something that is not Quick Share.
+      verified on the phone's own storage, not on the sender.** Landed as
+      `paired-file-send` and `paired-file-receive`, named for the difference a
+      user notices rather than for the tool: Quick Share needs no pairing and
+      does need one LAN; this needs pairing first and works outside the LAN.
+      Reusing F1's ids would have silently rewritten a history that was about
+      Quick Share.
+- [ ] **Receive by the gesture a person would use.** `paired-file-receive` is
+      measured over the SFTP mount — the route a technician takes — not by
+      sharing to the PC from the phone's own share sheet. Different paths, and
+      the human one is unmeasured. Needs someone with the phone in hand.
+- [ ] **Make verification something a user can do.** Confirming a file arrived
+      currently needs `sshfs` and mounting the phone's storage. So the capability
+      works while *checking that it works* is out of reach of the person using
+      it, and that is a product gap, not only a measurement one.
 
 > **Everything measured so far went over Tailscale, not the LAN**, with 97-737 ms
 > RTT and a relay in the path. That is not the route the product will use, so no
