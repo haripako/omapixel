@@ -78,13 +78,16 @@ themed icon name. Quickshell copes. A bar that reads the specification strictly
 may not, so on another desktop the icon may be missing even though the item
 registers.
 
-## F2 — Clipboard and notifications
+## F2 — KDE Connect: clipboard, notifications and files
 
 In: nothing. **Corrected 2026-08-17: this said "F1 working", and it was wrong.**
 F1 is blocked on a BlueZ bug and F2 was measured anyway — the two share no code
 path. The dependency was assumed because both involve the phone, and it cost a
 day of treating F2 as unreachable.
-Out: copy on the phone, paste on the PC.
+Out: copy on the phone, paste on the PC — and, since F1 is blocked upstream,
+**the file path that does work today**. This is not a substitute for Quick
+Share: it is a second route, with its own tool and its own rows, and saying
+which one a user is actually using is the whole point.
 
 - [x] Install `kdeconnect` and the Android app — `kdeconnect 26.04.3-1`
 - [x] Pair — `Pixel 7 Pro`, paired and reachable, 2026-08-17
@@ -94,6 +97,12 @@ Out: copy on the phone, paste on the PC.
 - [ ] Verify the clipboard under Wayland (`wl-clipboard`)
 - [ ] Decide how the daemon starts in the Hyprland session
 - [ ] Check whether the tray icon coexists with the bar
+- [ ] Files over KDE Connect — **measured 2026-08-19, both directions, hash
+      verified on the phone's own storage, not on the sender.** Needs its own
+      rows: `file-send` and `file-receive` belong to F1 and their tool is
+      `rquickshare`, whose note says both devices must share a LAN subnet.
+      Marking them from a KDE Connect measurement would claim Quick Share works
+      on the strength of something that is not Quick Share.
 
 > **Everything measured so far went over Tailscale, not the LAN**, with 97-737 ms
 > RTT and a relay in the path. That is not the route the product will use, so no
