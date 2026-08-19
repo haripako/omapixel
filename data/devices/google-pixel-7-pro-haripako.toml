@@ -64,4 +64,18 @@ method = "measured"
 tool = "kdeconnect 26.04.3-1"
 notes = "Measured 2026-08-17. Text copied on the phone appeared on the desktop clipboard within seconds: 15 bytes, matching the agreed probe string exactly, so this is not a coincidental change. Two caveats. Only phone to desktop was measured; the reverse direction was not, and KDE Connect has no read-back command to verify it without ADB. And the link ran over Tailscale, not the LAN, so this says nothing about LAN behaviour."
 
+[[result]]
+id = "paired-file-send"
+status = "partial"
+method = "measured"
+tool = "kdeconnect 26.04.3-1"
+notes = "Measured 2026-08-19. A 61-byte file sent from the desktop was read back off the phone own storage with an identical sha256, so this is arrival rather than departure. Caveat: the link ran over Tailscale through a relay, not the LAN, and verifying arrival needs sshfs installed and the phone storage mounted, which is not something a normal user does."
+
+[[result]]
+id = "paired-file-receive"
+status = "partial"
+method = "measured"
+tool = "kdeconnect 26.04.3-1"
+notes = "Measured 2026-08-19 by copying from the SFTP mount, 61 bytes, identical sha256. Caveat that matters: this is the mount path, not the share gesture from the phone own interface, and those are different paths. The share gesture remains unmeasured. Transport was Tailscale, not the LAN."
+
 # *— end of report —*

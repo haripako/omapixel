@@ -142,3 +142,19 @@ apple = "Handoff"
 phase = "F5"
 tool = "—"
 notes = "No equivalent concept outside Apple-to-Apple or Google-to-Google."
+
+[[capability]]
+id = "paired-file-send"
+name = "Send files to a paired phone"
+apple = "AirDrop"
+phase = "F2"
+tool = "kdeconnect"
+notes = "A second route, not a substitute for Quick Share. It needs the phone paired first, which Quick Share does not, and in exchange it works off the LAN. Saying which route a user is on is the distinction this project exists to make."
+
+[[capability]]
+id = "paired-file-receive"
+name = "Receive files from a paired phone"
+apple = "AirDrop"
+phase = "F2"
+tool = "kdeconnect"
+notes = "Measured over the SFTP mount rather than the share gesture on the phone. Those are two different paths to the same outcome and only the first has been measured."

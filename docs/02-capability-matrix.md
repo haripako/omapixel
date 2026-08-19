@@ -31,6 +31,8 @@ Built from 1 device report. Every cell traces back to a named reporter and a dat
 | Tethering without entering a password | Instant Hotspot | F5 | `—` | untested |
 | Move a call between devices | Call handoff | F5 | `—` | untested |
 | Continue an app across devices | Handoff | F5 | `—` | untested |
+| Send files to a paired phone | AirDrop | F2 | `kdeconnect` | partial 1 |
+| Receive files from a paired phone | AirDrop | F2 | `kdeconnect` | partial 1 |
 
 ### Constraints worth knowing
 
@@ -45,6 +47,8 @@ Built from 1 device report. Every cell traces back to a named reporter and a dat
 - **Tethering without entering a password** — Google Cross-device services: same Google account, Android and ChromeOS only.
 - **Move a call between devices** — Google Cross-device services. Same constraint as instant-hotspot.
 - **Continue an app across devices** — No equivalent concept outside Apple-to-Apple or Google-to-Google.
+- **Send files to a paired phone** — A second route, not a substitute for Quick Share. It needs the phone paired first, which Quick Share does not, and in exchange it works off the LAN. Saying which route a user is on is the distinction this project exists to make.
+- **Receive files from a paired phone** — Measured over the SFTP mount rather than the share gesture on the phone. Those are two different paths to the same outcome and only the first has been measured.
 
 ## Reports
 
@@ -58,4 +62,6 @@ Host — distro: Arch Linux; desktop: Omarchy 4 (edge) / Hyprland; kernel: 7.1.8
 |---|---|---|---|---|
 | Phone notifications on the desktop | partial | measured | `kdeconnect 26.04.3-1` | Measured 2026-08-17. Four notifications from the phone reached the desktop and are readable over D-Bus with their originating app: Netflix, System UI, YouTube Music. That is the transport half. The caveat is the other half: this desktop's notification server is Quickshell, which keeps no queryable history, so whether they were drawn on screen was not verified in pixels. Also, the link ran over Tailscale via a relay, not over the LAN, so nothing here says the LAN path works. |
 | Shared clipboard | partial | measured | `kdeconnect 26.04.3-1` | Measured 2026-08-17. Text copied on the phone appeared on the desktop clipboard within seconds: 15 bytes, matching the agreed probe string exactly, so this is not a coincidental change. Two caveats. Only phone to desktop was measured; the reverse direction was not, and KDE Connect has no read-back command to verify it without ADB. And the link ran over Tailscale, not the LAN, so this says nothing about LAN behaviour. |
+| Send files to a paired phone | partial | measured | `kdeconnect 26.04.3-1` | Measured 2026-08-19. A 61-byte file sent from the desktop was read back off the phone own storage with an identical sha256, so this is arrival rather than departure. Caveat: the link ran over Tailscale through a relay, not the LAN, and verifying arrival needs sshfs installed and the phone storage mounted, which is not something a normal user does. |
+| Receive files from a paired phone | partial | measured | `kdeconnect 26.04.3-1` | Measured 2026-08-19 by copying from the SFTP mount, 61 bytes, identical sha256. Caveat that matters: this is the mount path, not the share gesture from the phone own interface, and those are different paths. The share gesture remains unmeasured. Transport was Tailscale, not the LAN. |
 
